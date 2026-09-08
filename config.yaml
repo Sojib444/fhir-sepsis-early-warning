@@ -1,0 +1,35 @@
+# Single source of truth for every knob that affects a reported number.
+# AGENTS-ENGINEERING.md §23: one seed, defined once, threaded everywhere.
+
+seed: 20190801  # PhysioNet/CinC Challenge 2019; arbitrary but fixed and never changed
+
+paths:
+  raw: data/raw
+  interim: data/interim
+  cohort: data/interim/cohort.parquet
+  results: results
+
+data:
+  sites:
+    A: training_setA   # Beth Israel Deaconess Medical Center, Boston
+    B: training_setB   # Emory University Hospital, Atlanta
+  # D3: the only exclusion. Patients with fewer than this many hourly records
+  # are dropped. Reported per site in docs/data_notes.md.
+  min_icu_hours: 8
+
+splits:
+  # Site A is split by patient_id, 80/20. Site B is never split: it is held out
+  # entirely (AGENTS.md §2.2).
+  train_fraction: 0.8
+
+features:
+  # D4: three windows, five statistics per variable per window.
+  windows: [6, 12, 24]
+  statistics: [min, max, mean, last, slope]
+
+model:
+  lightgbm:
+    # §23: without these three, results move between machines and thread counts.
+    deterministic: true
+    force_row_wise: true
+    num_threads: 4

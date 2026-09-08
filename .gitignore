@@ -1,0 +1,40 @@
+# Data — never commit patient records (AGENTS.md §2.6)
+data/raw/
+data/interim/
+*.parquet
+*.psv
+!tests/fixtures/**/*.psv
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# .NET
+bin/
+obj/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# LaTeX build products
+docs/report/*.aux
+docs/report/*.log
+docs/report/*.out
+docs/report/*.pdf
+
+# Local run artefacts from scripts/fetch_data.sh
+.fetch_data.log
+.fetch_data.log.err
+.fetch_data.pid
