@@ -68,6 +68,7 @@ jobs:
       # the committed synthetic fixtures only (§18, §19).
       - name: Assert no real data is present
         run: |
+          mkdir -p data/raw
           if find data/raw -name 'p*.psv' -print -quit | grep -q .; then
             echo "data/raw/ contains patient files in CI — the fast tier must not depend on them"
             exit 1

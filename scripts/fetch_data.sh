@@ -84,6 +84,7 @@ validate_set() {
   local bad
   bad="$(mktemp)"
 
+  # shellcheck disable=SC2016  # $0 and FILENAME below are awk's, not the shell's
   find "$dir" -name 'p*.psv' -print0 \
     | xargs -0 -n 2000 awk -F'|' -v hdr="$PSV_HEADER" -v want="$PSV_FIELDS" '
         FNR == 1 { rows[FILENAME] = 0; if ($0 != hdr) { print FILENAME; nextfile } next }
