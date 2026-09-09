@@ -1,0 +1,21 @@
+services:
+  hapi:
+    image: hapiproject/hapi:v6.4.0
+    container_name: sepsis-hapi
+    ports:
+      - "8080:8080"
+    environment:
+      # Small demo footprint. Bump for a full-site load.
+      JAVA_OPTS: "-Xmx768m"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/fhir/metadata"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes:
+      - hapi-data:/data/hapi
+    restart: unless-stopped
+
+volumes:
+  hapi-data:

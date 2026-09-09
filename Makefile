@@ -21,7 +21,7 @@ PYTHON  := $(UV) run python
 COHORT  := data/interim/cohort.parquet
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data fetch fixtures verify train eval up down test test-fast lint format clean
+.PHONY: help setup data fetch fixtures verify train eval rigor up down fhirload fhir-export fhir-load-demo test test-fast lint format clean
 
 help:  ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -63,11 +63,20 @@ rigor: eval  ## Phase 4: calibration, subgroups, alert burden, transfer curve
 
 # --- services (Phases 5-7) ---------------------------------------------------
 
-up:
-	@echo "make up — not implemented until Phase 5 (FHIR layer)." && exit 1
+up:  ## Start the stack: HAPI FHIR only until Phases 6-7 are wired
+	docker compose up -d hapi
 
-down:
-	@echo "make down — not implemented until Phase 5 (FHIR layer)." && exit 1
+down:  ## Stop the stack
+	docker compose down
+
+fhirload:  ## Build and test the .NET FHIR loader
+	dotnet test sepsis.slnx
+
+fhir-export:  ## Export the cohort CSV the FhirLoader consumes
+	$(PYTHON) scripts/export_fhirloader.py
+
+fhir-load-demo: fhir-export  ## Load 200 patients into HAPI (docker compose up first)
+	dotnet run --project src/FhirLoader -- --count 200
 
 # --- quality -----------------------------------------------------------------
 

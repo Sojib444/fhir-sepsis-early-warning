@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FhirLoader.Tests/FhirLoader.Tests.csproj" />
+    <Project Path="src/FhirLoader/FhirLoader.csproj" />
+  </Folder>
+</Solution>
