@@ -75,7 +75,7 @@ jobs:
           fi
 
       - name: Run tiers 1-3
-        run: uv run pytest tests/unit tests/invariant tests/fixture --durations=10
+        run: uv run pytest tests/unit tests/invariant tests/fixture tests/regression --durations=10
 
       # The fixtures are committed. If regenerating them produces a diff, the
       # generator and the committed files have drifted apart.

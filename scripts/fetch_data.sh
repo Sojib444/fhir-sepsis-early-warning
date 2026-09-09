@@ -26,7 +26,9 @@ RAW_DIR="$REPO_ROOT/data/raw"
 VENDOR_DIR="$REPO_ROOT/src/sepsis/vendor"
 CHECKSUM_FILE="$REPO_ROOT/data/CHECKSUMS.sha256"
 
-BASE_URL="https://physionet.org/files/challenge-2019/1.0.0/training"
+# Overridable so the test suite can point the script at an unreachable host and
+# assert that it fails loudly rather than silently doing nothing.
+BASE_URL="${FETCH_BASE_URL:-https://physionet.org/files/challenge-2019/1.0.0/training}"
 SCORER_URL="https://raw.githubusercontent.com/physionetchallenges/evaluation-2019/master/evaluate_sepsis_score.py"
 PROJECT_PAGE="https://physionet.org/content/challenge-2019/1.0.0/"
 
@@ -36,6 +38,7 @@ EXPECTED_B=20000
 
 PARALLEL="${FETCH_PARALLEL:-16}"   # concurrent connections; measured ~11.5 files/s
 CHUNK="${FETCH_CHUNK:-2000}"       # files per curl invocation, so progress is visible
+RETRIES="${FETCH_RETRIES:-5}"      # lowered by the tests, which expect to fail fast
 
 log() { printf '[fetch_data] %s\n' "$*"; }
 
@@ -113,7 +116,7 @@ fetch_scorer() {
     return 0
   fi
   log "fetching official utility scorer"
-  curl -fsSL --retry 5 --retry-delay 2 --max-time 120 -o "$dest.part" "$SCORER_URL" \
+  curl -fsSL --retry "$RETRIES" --retry-delay 2 --max-time 120 -o "$dest.part" "$SCORER_URL" \
     || fail "could not download the official scorer"
   mv "$dest.part" "$dest"
   log "scorer written to src/sepsis/vendor/evaluate_sepsis_score.py"
@@ -123,7 +126,7 @@ fetch_scorer() {
 # PhysioNet serves a plain directory index for each set. Parse the hrefs.
 list_patients() {
   local set_name="$1"
-  curl -fsSL --retry 5 --retry-delay 2 --max-time 900 "$BASE_URL/$set_name/" \
+  curl -fsSL --retry "$RETRIES" --retry-delay 2 --max-time 900 "$BASE_URL/$set_name/" \
     | grep -oE 'href="p[0-9]+\.psv"' \
     | sed -E 's/href="(.*)"/\1/' \
     | sort -u
@@ -204,7 +207,7 @@ fetch_set() {
       # is kept, because a silent write failure is exactly the bug this
       # comment exists to prevent recurring.
       ( cd "$dir" && curl -sS --parallel --parallel-max "$PARALLEL" \
-           -C - --retry 5 --retry-delay 3 --connect-timeout 30 --max-time 300 \
+           -C - --retry "$RETRIES" --retry-delay 3 --connect-timeout 30 --max-time 300 \
            --config "$chunk_cfg" ) 2>&1 | grep -v 'curl: (28)' || true
 
       offset=$((offset + CHUNK))

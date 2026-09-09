@@ -69,7 +69,7 @@ test:  ## Run the full Python suite (tiers 1-3; no real data needed)
 	$(UV) run pytest
 
 test-fast:  ## Tiers 1-3 only, the CI gate that must stay under two minutes
-	$(UV) run pytest tests/unit tests/invariant tests/fixture
+	$(UV) run pytest tests/unit tests/invariant tests/fixture tests/regression
 
 lint:  ## Static checks
 	$(UV) run ruff check .
