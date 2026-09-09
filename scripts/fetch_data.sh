@@ -272,4 +272,9 @@ main() {
   log "done"
 }
 
-main "$@"
+# Only run when executed, not when sourced. Sourcing lets the test suite call
+# validate_set directly instead of re-implementing the truncation check in
+# Python and letting the two drift apart.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  main "$@"
+fi
