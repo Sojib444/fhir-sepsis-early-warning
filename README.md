@@ -59,6 +59,8 @@ make data                  # verify checksums, build the cohort, regenerate docs
 
 ## Reproducing the numbers
 
+Full instructions, with expected runtimes, are in [`REPRODUCE.md`](REPRODUCE.md).
+
 Every generated document embeds a provenance block — git commit, whether the tree was dirty, the seed, input data digests, package versions and a UTC timestamp. A number without one is not a number from this project.
 
 ```bash

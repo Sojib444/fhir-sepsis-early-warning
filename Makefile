@@ -10,6 +10,12 @@
 
 export PYTHONHASHSEED := 0
 
+# Recipes run under bash, not the platform default. On Windows, make would
+# otherwise hand recipes to cmd.exe, which has none of the tools used here and
+# cannot run scripts/*.sh at all. Git Bash satisfies this.
+SHELL := bash
+.SHELLFLAGS := -eu -o pipefail -c
+
 UV      := uv
 PYTHON  := $(UV) run python
 COHORT  := data/interim/cohort.parquet
