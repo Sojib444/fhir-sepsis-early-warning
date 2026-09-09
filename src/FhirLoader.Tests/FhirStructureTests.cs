@@ -22,7 +22,7 @@ public class FhirStructureTests
             v => v,
             v => v == "HR" ? 92m : (decimal?)null));
 
-    private static LoincEntry Hr => new("HR", "8867-4", "Heart rate", "{beats}/min", true, "");
+    private static LoincEntry Hr => new("HR", LoincMap.LoincSystem, "8867-4", "Heart rate", "{beats}/min", true, "");
 
     [Fact]
     public void Generated_Observation_round_trips_and_meets_base_profile_cardinality()

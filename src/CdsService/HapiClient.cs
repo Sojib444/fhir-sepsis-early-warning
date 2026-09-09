@@ -7,6 +7,13 @@ namespace CdsService;
 public sealed class HapiClient
 {
     /// <summary>
+    /// The study-annotation variable (loinc_map.json "SepsisLabel"). It is not
+    /// a clinical measurement the model sees; it marks the true onset hour for
+    /// the dashboard (§7).
+    /// </summary>
+    public const string SepsisLabelVariable = "SepsisLabel";
+
+    /// <summary>
     /// The loader pins clock time to this instant for the row ICULOS == 1
     /// (src/FhirLoader/FhirClock.cs). The CDS service reconstructs each hourly
     /// cell's ICULOS from its effective instant against this epoch, then
@@ -62,8 +69,7 @@ public sealed class HapiClient
 
     public PatientSnapshot BuildSnapshot(string patientId, Bundle observations, Patient? patient)
     {
-        List<(int Iculos, int Hour, string Var, double? Value)> cells = new();
-        int minIculos = int.MaxValue;
+        List<(int Iculos, string Var, double? Value)> cells = new();
 
         foreach (Bundle.EntryComponent entry in observations.Entry ?? [])
         {
@@ -76,15 +82,26 @@ public sealed class HapiClient
             if (instant is null) continue;
 
             int iculos = (int)Math.Floor((instant.Value - Epoch).TotalHours) + 1;
-            minIculos = Math.Min(minIculos, iculos);
-            cells.Add((iculos, 0, variable, value));
+            cells.Add((iculos, variable, value));
         }
 
+        int minIculos = cells.Count == 0 ? 0 : cells.Min(c => c.Iculos);
+
+        // Feature rows exclude the study label (it is not a clinical variable the
+        // model saw); the label instead pins the true onset hour for the dashboard.
         List<ObservationRow> rows = cells
+            .Where(c => c.Var != SepsisLabelVariable)
             .Select(c => new ObservationRow(c.Iculos - minIculos, c.Var, c.Value))
             .OrderBy(r => r.Hour)
             .ThenBy(r => r.Var)
             .ToList();
+
+        int? onsetHour = cells
+            .Where(c => c.Var == SepsisLabelVariable && c.Value == 1.0)
+            .Select(c => c.Iculos - minIculos)
+            .OrderBy(h => h)
+            .Cast<int?>()
+            .FirstOrDefault();
 
         int currentIculos = cells.Count == 0 ? 1 : cells.Max(c => c.Iculos);
         double? age = PatientAgeIn2019(patient);
@@ -94,7 +111,7 @@ public sealed class HapiClient
             AdministrativeGender.Female => 1,
             _ => null,
         };
-        return new PatientSnapshot(patientId, rows, age, gender, currentIculos);
+        return new PatientSnapshot(patientId, rows, age, gender, currentIculos, onsetHour);
     }
 
     private static DateTimeOffset? ObsInstant(Observation obs)

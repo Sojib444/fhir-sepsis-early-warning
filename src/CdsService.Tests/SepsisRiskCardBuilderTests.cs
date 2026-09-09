@@ -83,5 +83,8 @@ public class SepsisRiskCardBuilderTests
     {
         public Task<PatientSnapshot> BuildSnapshotAsync(string patientId, string? prefetchBundleJson) =>
             Task.FromException<PatientSnapshot>(new HttpRequestException("connection refused"));
+
+        public Task<IReadOnlyList<string>> ListPatientsAsync(int limit) =>
+            Task.FromException<IReadOnlyList<string>>(new HttpRequestException("connection refused"));
     }
 }

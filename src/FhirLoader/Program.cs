@@ -171,7 +171,7 @@ internal static class Program
     }
 }
 
-/// <summary>Frozen list of the 34 clinical variables, in CSV header order.</summary>
+/// <summary>Frozen list of the clinical variables and the study label, in CSV header order.</summary>
 public static class ClinicalVariables
 {
     public static readonly string[] All =
@@ -182,5 +182,7 @@ public static class ClinicalVariables
         "Glucose", "Lactate", "Magnesium", "Phosphate", "Potassium",
         "Bilirubin_total", "TroponinI", "Hct", "Hgb", "PTT", "WBC", "Fibrinogen",
         "Platelets",
+        // Study annotation, not a clinical measurement (§7 dashboard onset marker).
+        "SepsisLabel",
     };
 }

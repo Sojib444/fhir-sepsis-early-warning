@@ -22,6 +22,7 @@ builder.Services.AddHttpClient<ModelScorer>(client =>
 builder.Services.AddScoped<IHapiSource>(sp => sp.GetRequiredService<HapiSource>());
 builder.Services.AddScoped<IModelScorer>(sp => sp.GetRequiredService<ModelScorer>());
 builder.Services.AddScoped<SepsisRiskCardBuilder>();
+builder.Services.AddScoped<TrajectoryService>();
 
 var app = builder.Build();
 app.UseRouting();
@@ -89,6 +90,69 @@ static string? ExtractPrefetchObservations(CdsHookRequest request)
         _ => null,
     };
 }
+
+// --- dashboard endpoints (Phase 7) -------------------------------------------
+
+// Patient list with current risk (§13.1). Risk per patient is computed by the
+// card path; the list itself is FHIR Patient ids, oldest first.
+app.MapGet("/patients", async (int? limit, IHapiSource hapi, IModelScorer model) =>
+{
+    IReadOnlyList<string> ids = await hapi.ListPatientsAsync(limit ?? 50);
+    var assets = new List<object>();
+    foreach (string id in ids)
+    {
+        try
+        {
+            PatientSnapshot snapshot = await hapi.BuildSnapshotAsync(id, prefetchBundleJson: null);
+            FeatureRow row = await model.BuildFeaturesAsync(snapshot);
+            ModelResult result = await model.ScoreAsync(row);
+            assets.Add(new { patientId = id, result.Risk, result.Threshold, result.Indicator });
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or InvalidOperationException)
+        {
+            // Skip patients the services cannot score; keep the list useful.
+        }
+    }
+    if (assets.Count == 0)
+    {
+        return Results.UnprocessableEntity(new { error = "no scoreable patients" });
+    }
+    return Results.Ok(new { patients = assets });
+});
+
+// Risk trajectory over time with the true onset hour (§13.2).
+app.MapPost("/sepsis-risk/trajectory", async (TrajectoryRequest request, TrajectoryService service) =>
+{
+    if (string.IsNullOrWhiteSpace(request.PatientId))
+    {
+        return Results.BadRequest(new { error = "missing patientId" });
+    }
+    try
+    {
+        TrajectoryResponse response = await service.BuildAsync(request.PatientId, request.Hour);
+        return Results.Ok(response);
+    }
+    catch (TrajectoryUnavailableException ex)
+    {
+        return Results.UnprocessableEntity(new { error = ex.Message });
+    }
+});
+
+// Threshold slider data from the precomputed alert-burden sweep (§13.3).
+app.MapGet("/sepsis-risk/sweep", (IConfiguration config) =>
+{
+    string? path = config["SWEEP_PATH"] ?? Path.Combine(Path.GetFullPath("."), "rigor.json");
+    if (!File.Exists(path))
+    {
+        return Results.NotFound($"sweep file {path} not found; run `make rigor` to produce it");
+    }
+    using var document = JsonDocument.Parse(File.ReadAllText(path));
+    if (!document.RootElement.TryGetProperty("alert_burden", out JsonElement sweep))
+    {
+        return Results.NotFound("rigor.json has no alert_burden key");
+    }
+    return Results.Text(sweep.GetRawText(), "application/json");
+});
 
 await app.RunAsync();
 

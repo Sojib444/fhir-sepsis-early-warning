@@ -23,7 +23,7 @@ public static class ObservationMapper
             {
                 Coding = new List<Coding>
                 {
-                    new Coding(LoincMap.LoincSystem, entry.Loinc, entry.Display),
+                    new Coding(entry.System, entry.Loinc, entry.Display),
                 },
             },
             Subject = new ResourceReference(FhirFactory.PatientRef(row.PatientId)),

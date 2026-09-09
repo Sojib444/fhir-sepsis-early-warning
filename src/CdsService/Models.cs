@@ -16,10 +16,23 @@ public sealed record PatientSnapshot(
     IReadOnlyList<ObservationRow> Observations,
     double? Age,
     int? Gender,
-    int? Iculos)
+    int? Iculos,
+    int? OnsetHour = null)
 {
     /// <summary>Current 0-based hour of the patient (last observed hour).</summary>
     public int CurrentHour => Observations.Count == 0 ? 0 : Observations.Max(o => o.Hour);
+
+    /// <summary>
+    /// The stay truncated at hour ≤ <paramref name="hour"/>, with the ICULOS
+    /// feature aligned to that row. Used by the trajectory endpoint to score
+    /// every historical hour without ever seeing later data.
+    /// </summary>
+    public PatientSnapshot Prefix(int hour)
+    {
+        IReadOnlyList<ObservationRow> rows = Observations.Where(o => o.Hour <= hour).ToList();
+        int prefixIculos = Iculos is null ? hour + 1 : (Iculos.Value - CurrentHour) + hour;
+        return this with { Observations = rows, Iculos = prefixIculos };
+    }
 }
 
 /// <summary>The feature row the model service produced for the current hour.</summary>
@@ -63,3 +76,25 @@ public sealed class CdsHookRequest
     [JsonPropertyName("prefetch")]
     public Dictionary<string, JsonElement>? Prefetch { get; init; }
 }
+
+// --- dashboard endpoints (Phase 7) -------------------------------------------
+
+public sealed class TrajectoryRequest
+{
+    [JsonPropertyName("patientId")]
+    public string? PatientId { get; init; }
+
+    /// <summary>Hour whose SHAP contributions the dashboard wants (default: last).</summary>
+    [JsonPropertyName("hour")]
+    public int? Hour { get; init; }
+}
+
+public sealed record RiskPoint(int Hour, double Risk);
+
+public sealed record TrajectoryResponse(
+    string PatientId,
+    double Threshold,
+    int? OnsetHour,
+    IReadOnlyList<RiskPoint> Hours,
+    IReadOnlyList<ShapContribution> Shap,
+    int ShapHour);

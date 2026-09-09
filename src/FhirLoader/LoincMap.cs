@@ -6,6 +6,7 @@ namespace FhirLoader;
 /// <summary>One LOINC entry for a clinical variable (keyed by the source column).</summary>
 public sealed record LoincEntry(
     string Variable,
+    string System,
     string Loinc,
     string Display,
     string Ucum,
@@ -43,12 +44,16 @@ public sealed class LoincMap
     public IReadOnlyList<LoincEntry> Unverified =>
         Entries.Where(e => !e.Verified).ToList();
 
+    public LoincEntry? TryGetByCode(string system, string code) =>
+        Entries.FirstOrDefault(e => e.System == system && e.Loinc == code);
+
     private LoincMap(Doc doc)
     {
         Entries = doc.Variables
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .Select(pair => new LoincEntry(
                 pair.Key,
+                string.IsNullOrEmpty(pair.Value.System) ? LoincSystem : pair.Value.System!,
                 pair.Value.Loinc,
                 pair.Value.Display,
                 pair.Value.Ucum,
@@ -65,6 +70,7 @@ public sealed class LoincMap
 
     private sealed class Entry
     {
+        public string? System { get; set; }
         public string Loinc { get; set; } = string.Empty;
         public string Display { get; set; } = string.Empty;
         public string Ucum { get; set; } = string.Empty;

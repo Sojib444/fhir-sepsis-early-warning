@@ -59,7 +59,7 @@ public class ObservationMapperTests
         return new SourceRow("p000001", "A", iculos - 1, iculos, 62m, 1, 1m, 0m, false, vitals);
     }
 
-    private static LoincEntry Lr = new("HR", "8867-4", "Heart rate", "{beats}/min", true, "");
+    private static LoincEntry Lr = new("HR", LoincMap.LoincSystem, "8867-4", "Heart rate", "{beats}/min", true, "");
 
     [Fact]
     public void Map_preserves_the_quantity_and_UCUM_unit()
@@ -224,7 +224,7 @@ public class LoincMapTests
     public void Map_covers_every_clinical_variable_and_marks_unverified()
     {
         var map = LoincMap.Load(RepoPath.Resolve(Path.Combine("src", "FhirLoader", "LoincMap.json")));
-        Assert.Equal(34, map.Entries.Count);
+        Assert.Equal(35, map.Entries.Count);
         Assert.Equal(ClinicalVariables.All.OrderBy(v => v), map.Entries.Select(e => e.Variable).OrderBy(v => v));
         Assert.NotEmpty(map.Unverified);
         Assert.All(map.Entries, e => Assert.NotEmpty(e.Loinc));

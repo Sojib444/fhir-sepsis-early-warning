@@ -52,6 +52,19 @@ public static class TestHelpers
         }
         return bundle.ToJson();
     }
+
+    /// <summary>A rigor.json with an alert_burden table, written to a temp file.</summary>
+    public static string WriteTempSweep()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"rigor-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, """
+            {"alert_burden":[
+              {"threshold":0.02,"sensitivity":0.91,"ppv":0.02,"alerts_per_100_icu_days":8.1},
+              {"threshold":0.50,"sensitivity":0.41,"ppv":0.11,"alerts_per_100_icu_days":1.7}
+            ]}
+            """);
+        return path;
+    }
 }
 
 /// <summary>Routes relative requests to canned JSON or a status code.</summary>
@@ -77,11 +90,15 @@ public sealed class StubRoutes(params (string Path, string Json)[] routes) : Htt
     }
 }
 
-public sealed class FakeHapiSource(PatientSnapshot snapshot) : IHapiSource
+public sealed class FakeHapiSource(PatientSnapshot snapshot, string[]? patientIds = null) : IHapiSource
 {
     public System.Threading.Tasks.Task<PatientSnapshot> BuildSnapshotAsync(
         string patientId, string? prefetchBundleJson) =>
         System.Threading.Tasks.Task.FromResult(snapshot);
+
+    public System.Threading.Tasks.Task<IReadOnlyList<string>> ListPatientsAsync(int limit) =>
+        System.Threading.Tasks.Task.FromResult<IReadOnlyList<string>>(
+            (patientIds ?? [snapshot.PatientId]).Take(limit).ToList());
 }
 
 public sealed class FakeModelScorer(

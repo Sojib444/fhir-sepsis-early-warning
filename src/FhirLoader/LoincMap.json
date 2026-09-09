@@ -36,6 +36,7 @@
     "PTT": { "loinc": "3173-0", "display": "Partial thromboplastin time (activated) in Blood", "ucum": "s", "verified": true, "note": "" },
     "WBC": { "loinc": "6690-2", "display": "Leukocytes [#/volume] in Blood", "ucum": "10*3/uL", "verified": true, "note": "UCUM unit string for thousands per uL is written '10*3/uL'; display unit '10^3/uL'." },
     "Fibrinogen": { "loinc": "3255-5", "display": "Fibrinogen [Mass/volume] in Platelet poor plasma", "ucum": "mg/dL", "verified": false, "note": "Verify code and specimen." },
-    "Platelets": { "loinc": "777-3", "display": "Platelets [#/volume] in Blood", "ucum": "10*3/uL", "verified": true, "note": "Same UCUM convention as WBC." }
+    "Platelets": { "loinc": "777-3", "display": "Platelets [#/volume] in Blood", "ucum": "10*3/uL", "verified": true, "note": "Same UCUM convention as WBC." },
+    "SepsisLabel": { "system": "urn:project:sepsis-cds:label", "loinc": "sepsis-onset", "display": "Sepsis onset: study label (local marker, not a LOINC/SNOMED code)", "ucum": "1", "verified": false, "note": "Not a standard code. The Challenge SepsisLabel is a research annotation (1 from t_sepsis-6h to end of stay); loaded so the dashboard can mark the true onset hour. See docs/data_notes.md." }
   }
 }
