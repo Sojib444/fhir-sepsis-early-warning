@@ -105,3 +105,20 @@ See AGENTS.md for the full specification. Follow it exactly.
 ```
 
 Do not maintain two copies of the spec — they will drift.
+
+---
+
+## D8 — Physiologically implausible values
+
+**Decision.** Leave them as-is. No clipping, no nulling, nowhere in the pipeline.
+
+**Reasoning.** (Decision recorded 2026-09-09, per AGENTS-ENGINEERING.md §24.)
+- LightGBM splits on rank, so a handful of impossible values changes almost nothing about the learned splits. The cost of leaving them in is close to zero for the model that matters.
+- Clipping or nulling discards signal precisely where the model needs it most: a real heart rate of 200 or a rising lactate in a septic patient is not a data-entry error, and the two are not separable from the value alone.
+- Setting errors to missing changes what `{var}_missing` and `{var}_hours_since_measured` mean — they would start carrying data-entry noise instead of the clinical decision not to measure.
+
+**Requirements.**
+- The logistic-regression baseline and any scaling may therefore see outlier influence; that is accepted and expected, and the baseline is deliberately weak.
+- The observed range and out-of-range counts for every variable, per site, are reported in `docs/data_notes.md` so the statement above is checkable.
+
+**Rejected.** Clipping to clinically plausible bounds (a clipped error becomes indistinguishable from a genuine boundary value); setting out-of-range values to missing (converts recorded observations into absences).
