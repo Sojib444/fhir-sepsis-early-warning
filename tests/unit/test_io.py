@@ -90,6 +90,27 @@ def test_wrong_columns_are_rejected(tmp_path: Path):
         parse_psv(path, "A")
 
 
+def test_a_null_label_is_rejected(tmp_path: Path):
+    """A null label would silently become a null prediction target."""
+    row = _row(1, 70)
+    fields = row.split("|")
+    fields[PSV_COLUMNS.index("SepsisLabel")] = "NaN"
+    path = _write(tmp_path, "p000001.psv", ["|".join(fields)])
+
+    with pytest.raises(PsvFormatError, match="contains nulls"):
+        parse_psv(path, "A")
+
+
+def test_a_non_binary_label_is_rejected(tmp_path: Path):
+    row = _row(1, 70)
+    fields = row.split("|")
+    fields[PSV_COLUMNS.index("SepsisLabel")] = "2"
+    path = _write(tmp_path, "p000001.psv", ["|".join(fields)])
+
+    with pytest.raises(PsvFormatError, match="not binary"):
+        parse_psv(path, "A")
+
+
 def test_label_is_an_integer_column(tmp_path: Path):
     path = _write(tmp_path, "p000001.psv", [_row(1, 70, label=0), _row(2, 80, label=1)])
     frame = parse_psv(path, "A")

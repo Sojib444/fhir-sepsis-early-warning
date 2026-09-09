@@ -81,6 +81,14 @@ def parse_psv(
     if frame.height == 0:
         raise PsvFormatError(f"{path.name}: file has a header but no rows")
 
+    label = frame.get_column(LABEL)
+    if label.null_count() > 0:
+        raise PsvFormatError(f"{path.name}: {LABEL} contains nulls")
+    if not set(label.unique().to_list()) <= {0.0, 1.0}:
+        raise PsvFormatError(
+            f"{path.name}: {LABEL} is not binary (found {sorted(label.unique().to_list())[:5]})"
+        )
+
     iculos = frame.get_column("ICULOS")
     if iculos.null_count() > 0:
         raise PsvFormatError(f"{path.name}: ICULOS contains nulls")
