@@ -6,10 +6,19 @@ hour t must never depend on data from after hour t.
 
 from __future__ import annotations
 
+import numpy as np
 import polars as pl
 
 from sepsis.config import CLINICAL_VARIABLES
-from sepsis.features import design_matrix, feature_columns, minimal_features, missingness_features
+from sepsis.features import (
+    _window_stats_one,
+    design_matrix,
+    feature_columns,
+    minimal_features,
+    missingness_features,
+    window_feature_columns,
+    window_features_frame,
+)
 
 
 def _example_cohort() -> pl.DataFrame:
@@ -108,3 +117,85 @@ def test_minimal_features_contains_exactly_the_agree_set():
         | {"Age", "Gender", "HospAdmTime", "ICULOS"}
     )
     assert set(cols) == expected
+
+
+# --- window statistics (Phase 3) ---------------------------------------------
+
+
+def _window_cohort_with_known_values() -> pl.DataFrame:
+    """One patient with known HR values for manual window arithmetic."""
+    cols = {
+        "patient_id": ["w1"] * 5,
+        "site": ["A"] * 5,
+        "hour": [0, 1, 2, 3, 4],
+        "HR": [1.0, 2.0, None, 4.0, 5.0],
+    }
+    for var in CLINICAL_VARIABLES:
+        cols.setdefault(var, [None] * 5)
+    cols["Age"] = [60.0] * 5
+    cols["Gender"] = [0] * 5
+    cols["Unit1"] = [None] * 5
+    cols["Unit2"] = [None] * 5
+    cols["HospAdmTime"] = [-1.0] * 5
+    cols["ICULOS"] = [7.0, 8.0, 9.0, 10.0, 11.0]
+    cols["SepsisLabel"] = [0] * 5
+    return pl.DataFrame(cols)
+
+
+def test_window_stats_one_matches_hand_arithmetic():
+    values = np.array([1.0, 2.0, np.nan, 4.0, 5.0])
+    stats = _window_stats_one(values, w=3)
+    np.testing.assert_allclose(
+        stats["min"], [1.0, 1.0, 1.0, 2.0, 4.0], equal_nan=True
+    )
+    np.testing.assert_allclose(
+        stats["max"], [1.0, 2.0, 2.0, 4.0, 5.0], equal_nan=True
+    )
+    np.testing.assert_allclose(
+        stats["mean"], [1.0, 1.5, 1.5, 3.0, 4.5], equal_nan=True
+    )
+    np.testing.assert_allclose(
+        stats["last"], [1.0, 2.0, 2.0, 4.0, 5.0], equal_nan=True
+    )
+    # slopes: (0,1)-(1,2) -> 1; (1,2)-(3,4) -> 1; (3,4)-(4,5) -> 1
+    np.testing.assert_allclose(stats["slope"], [np.nan, 1.0, 1.0, 1.0, 1.0], equal_nan=True)
+
+
+def test_window_features_never_read_the_future():
+    """Corrupting future hours must leave hours <= t untouched (AGENTS.md §2.3)."""
+    cohort = _window_cohort_with_known_values()
+    corrupted = cohort.clone()
+    for var in CLINICAL_VARIABLES:
+        corrupted = corrupted.with_columns(
+            pl.when(pl.col("hour") >= 3).then(999.9).otherwise(pl.col(var)).alias(var)
+        )
+
+    columns = window_feature_columns((6, 12, 24))
+    features = window_features_frame(cohort, (6, 12, 24))
+    features_corrupted = window_features_frame(corrupted, (6, 12, 24))
+
+    for t in (0, 1, 2):
+        before = features.filter(pl.col("hour") == t)
+        after = features_corrupted.filter(pl.col("hour") == t)
+        assert before.select(columns).equals(
+            after.select(columns)
+        ), f"window features at hour {t} depend on future data"
+
+
+def test_window_feature_columns_are_counted_and_ordered():
+    columns = window_feature_columns((6, 12, 24))
+    per_var = 2 + 3 * len(("min", "max", "mean", "last", "slope"))
+    assert len(columns) == len(CLINICAL_VARIABLES) * per_var + 4
+    # the order contract: missingness first, then window stats per window
+    assert columns.index("HR_missing") < columns.index("HR_min_6") < columns.index("HR_min_24")
+    assert "HR_slope_24" in columns
+    assert columns[-4:] == ["Age", "Gender", "HospAdmTime", "ICULOS"]
+
+
+def test_window_frame_keeps_side_columns_and_hours_since():
+    cohort = _window_cohort_with_known_values()
+    features = window_features_frame(cohort, (6,))
+    # HR measured at hours 0,1,3,4 (missing at 2): hours_since at 2 is 1.
+    hsm = features.get_column("HR_hours_since_measured").to_list()
+    assert hsm == [0, 0, 1, 0, 0]
+    assert features.get_column("HR_missing").to_list() == [0, 0, 1, 0, 0]

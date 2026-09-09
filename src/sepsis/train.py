@@ -85,7 +85,11 @@ def _drop_unobservable_features(design: pl.DataFrame) -> pl.DataFrame:
     if not feature_names:
         raise ValueError("design matrix has no feature columns")
     null_counts = design.select(feature_names).null_count().row(0)
-    used = [name for name, missing in zip(feature_names, null_counts) if missing < design.height]
+    used = [
+        name
+        for name, missing in zip(feature_names, null_counts, strict=True)
+        if missing < design.height
+    ]
     side = [c for c in design.columns if c not in feature_names]  # side columns
     return design.select([pl.col(c) for c in side] + [pl.col(c) for c in used])
 
