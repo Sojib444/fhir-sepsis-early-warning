@@ -66,6 +66,43 @@ need sha256sum
 sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
 count_psv() { find "$1" -name 'p*.psv' -size +0c 2>/dev/null | wc -l | tr -d ' '; }
 
+# The 41 columns of a Challenge 2019 file, in order. Used to detect a truncated
+# or corrupted download, which is otherwise indistinguishable from a short stay.
+PSV_HEADER='HR|O2Sat|Temp|SBP|MAP|DBP|Resp|EtCO2|BaseExcess|HCO3|FiO2|pH|PaCO2|SaO2|AST|BUN|Alkalinephos|Calcium|Chloride|Creatinine|Bilirubin_direct|Glucose|Lactate|Magnesium|Phosphate|Potassium|Bilirubin_total|TroponinI|Hct|Hgb|PTT|WBC|Fibrinogen|Platelets|Age|Gender|Unit1|Unit2|HospAdmTime|ICULOS|SepsisLabel'
+PSV_FIELDS=41
+
+# ------------------------------------------------------------- validation ---
+# An interrupted transfer leaves a file that is non-empty but short. Skipping it
+# on the next run because it "exists" would put silently truncated patients into
+# the cohort. Every file is therefore structurally checked: exact header, at
+# least one data row, and 41 fields on every row. Failures are deleted so the
+# next download pass fetches them again.
+#
+# Echoes the number of files removed.
+validate_set() {
+  local dir="$1"
+  local bad
+  bad="$(mktemp)"
+
+  find "$dir" -name 'p*.psv' -print0 \
+    | xargs -0 -n 2000 awk -F'|' -v hdr="$PSV_HEADER" -v want="$PSV_FIELDS" '
+        FNR == 1 { rows[FILENAME] = 0; if ($0 != hdr) { print FILENAME; nextfile } next }
+        NF != want { print FILENAME; nextfile }
+        { rows[FILENAME]++ }
+        END { for (f in rows) if (rows[f] < 1) print f }
+      ' 2>/dev/null | sort -u > "$bad"
+
+  local n
+  n=$(wc -l < "$bad" | tr -d ' ')
+  if [ "$n" -gt 0 ]; then
+    while read -r path; do
+      [ -n "$path" ] && rm -f "$path"
+    done < "$bad"
+  fi
+  rm -f "$bad"
+  echo "$n"
+}
+
 # ---------------------------------------------------------------- scorer ----
 fetch_scorer() {
   local dest="$VENDOR_DIR/evaluate_sepsis_score.py"
@@ -98,13 +135,17 @@ fetch_set() {
   local dir="$RAW_DIR/$set_name"
   mkdir -p "$dir"
 
-  local have
+  local have removed
   have=$(count_psv "$dir")
   if [ "$have" -eq "$expected" ]; then
-    log "$set_name: $have/$expected files already present, skipping"
-    return 0
+    removed=$(validate_set "$dir")
+    if [ "$removed" -eq 0 ]; then
+      log "$set_name: $have/$expected files already present and well-formed, skipping"
+      return 0
+    fi
+    log "$set_name: removed $removed malformed file(s), re-fetching them"
   fi
-  log "$set_name: $have/$expected files present, enumerating remote listing"
+  log "$set_name: $(count_psv "$dir")/$expected files present, enumerating remote listing"
 
   local listing todo chunk_cfg
   listing="$(mktemp)"
@@ -119,40 +160,66 @@ fetch_set() {
     fail "$set_name: listing has $remote_count files, expected $expected — the dataset layout changed, stop and check $PROJECT_PAGE"
   fi
 
-  # Only fetch what is missing or zero-length. This is what makes re-runs free.
-  : > "$todo"
-  while read -r fname; do
-    if [ ! -s "$dir/$fname" ]; then
-      printf '%s\n' "$fname" >> "$todo"
-    fi
-  done < "$listing"
-
-  local n_todo
-  n_todo=$(wc -l < "$todo" | tr -d ' ')
-  log "$set_name: $n_todo files to download, $PARALLEL concurrent connections"
-
-  # One curl process with --parallel reuses connections. Spawning one curl per
-  # file is roughly 3x slower and much harsher on a public academic server.
-  # Transient "curl: (28) Failed to connect" lines are normal under concurrency
-  # and are retried; the file count check below is the real gate.
-  local offset=0
-  while [ "$offset" -lt "$n_todo" ]; do
-    tail -n +$((offset + 1)) "$todo" | head -n "$CHUNK" > "$chunk_cfg.names"
-    : > "$chunk_cfg"
+  # Up to three passes: download what is missing, structurally validate, delete
+  # anything truncated, and go round again for those. Three is enough for
+  # transient failures and small enough to fail loudly on a real problem.
+  local attempt n_todo offset
+  for attempt in 1 2 3; do
+    # Only fetch what is missing or zero-length. This is what makes re-runs free.
+    : > "$todo"
     while read -r fname; do
-      printf 'url = "%s/%s/%s"\n' "$BASE_URL" "$set_name" "$fname" >> "$chunk_cfg"
-      printf 'output = "%s/%s"\n' "$dir" "$fname" >> "$chunk_cfg"
-    done < "$chunk_cfg.names"
+      if [ ! -s "$dir/$fname" ]; then
+        printf '%s\n' "$fname" >> "$todo"
+      fi
+    done < "$listing"
 
-    curl -sS --parallel --parallel-max "$PARALLEL" \
-         -C - --retry 5 --retry-delay 3 --connect-timeout 30 --max-time 300 \
-         --config "$chunk_cfg" 2>&1 | grep -v 'curl: (28)' || true
-
-    offset=$((offset + CHUNK))
-    if [ "$offset" -gt "$n_todo" ]; then
-      offset="$n_todo"
+    n_todo=$(wc -l < "$todo" | tr -d ' ')
+    if [ "$n_todo" -eq 0 ]; then
+      log "$set_name: nothing left to download"
+    else
+      log "$set_name: pass $attempt — $n_todo files to download, $PARALLEL concurrent connections"
     fi
-    log "$set_name: $offset/$n_todo requested, $(count_psv "$dir")/$expected on disk"
+
+    # One curl process with --parallel reuses connections. Spawning one curl per
+    # file is roughly 3x slower and much harsher on a public academic server.
+    offset=0
+    while [ "$offset" -lt "$n_todo" ]; do
+      # A `tail -n +N | head -n K` pipeline hangs under MSYS (head exits, tail
+      # never sees EPIPE). One sed range does the same job without a pipe.
+      sed -n "$((offset + 1)),$((offset + CHUNK))p" "$todo" > "$chunk_cfg.names"
+      : > "$chunk_cfg"
+      while read -r fname; do
+        printf 'url = "%s/%s/%s"\n' "$BASE_URL" "$set_name" "$fname" >> "$chunk_cfg"
+        printf 'output = "%s"\n' "$fname" >> "$chunk_cfg"
+      done < "$chunk_cfg.names"
+
+      # `output` paths are relative and curl is run from inside $dir on purpose.
+      # Under Git Bash, MSYS translates POSIX paths in command-line arguments
+      # but not inside a --config file, so an absolute "/d/..." output path
+      # reaches the native curl binary unconverted and nothing is written.
+      #
+      # Transient "curl: (28) Failed to connect" lines are normal under
+      # concurrency and are retried, so they are dropped; every other message
+      # is kept, because a silent write failure is exactly the bug this
+      # comment exists to prevent recurring.
+      ( cd "$dir" && curl -sS --parallel --parallel-max "$PARALLEL" \
+           -C - --retry 5 --retry-delay 3 --connect-timeout 30 --max-time 300 \
+           --config "$chunk_cfg" ) 2>&1 | grep -v 'curl: (28)' || true
+
+      offset=$((offset + CHUNK))
+      if [ "$offset" -gt "$n_todo" ]; then
+        offset="$n_todo"
+      fi
+      log "$set_name: $offset/$n_todo requested, $(count_psv "$dir")/$expected on disk"
+    done
+
+    removed=$(validate_set "$dir")
+    have=$(count_psv "$dir")
+    log "$set_name: pass $attempt done — $have/$expected on disk, $removed malformed removed"
+
+    if [ "$have" -eq "$expected" ] && [ "$removed" -eq 0 ]; then
+      break
+    fi
   done
 
   rm -f "$listing" "$todo" "$chunk_cfg" "$chunk_cfg.names"
@@ -161,7 +228,7 @@ fetch_set() {
   if [ "$have" -ne "$expected" ]; then
     fail "$set_name: have $have/$expected files after download — re-run this script to resume"
   fi
-  log "$set_name: complete ($have files)"
+  log "$set_name: complete ($have files, all well-formed)"
 }
 
 # ------------------------------------------------------------ manifests -----
