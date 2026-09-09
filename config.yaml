@@ -7,9 +7,14 @@ paths:
   raw: data/raw
   interim: data/interim
   cohort: data/interim/cohort.parquet
+  designs: data/interim/designs
   results: results
   metrics: results/metrics.json
   models: results/models
+  search: results/hyperparameter_search.json
+  threshold: results/threshold.json
+  feature_drift: results/feature_drift.json
+  shap_importance: results/shap_importance.json
 
 data:
   sites:
@@ -20,9 +25,12 @@ data:
   min_icu_hours: 8
 
 splits:
-  # Site A is split by patient_id, 80/20. Site B is never split: it is held out
-  # entirely (AGENTS.md §2.2).
+  # Site A is split by patient_id, 80/20. Site B is held out for scoring
+  # (AGENTS.md §2.2); the rows required by the §9 matrix are produced by a
+  # second, disjoint, by-patient split of site B into B_train and B_eval.
+  # B_eval keeps the §2.2 warning on every access.
   train_fraction: 0.8
+  site_b_train_fraction: 0.8
 
 features:
   # D4: three windows, five statistics per variable per window.
@@ -35,3 +43,15 @@ model:
     deterministic: true
     force_row_wise: true
     num_threads: 4
+    # A fixed tree budget for the search and the refits. 18 configurations,
+    # no early stopping on the validation split (AGENTS.md §9.2: <= 20).
+    n_estimators: 600
+    grid:
+      learning_rate: [0.02, 0.05, 0.1]
+      num_leaves: [15, 31, 63]
+      min_child_samples: [20, 100]
+
+# D5: the operating threshold for every reported alert-facing number is
+# utility-max on the site-A validation split, swept at 0.01 granularity.
+threshold:
+  sweep_step: 0.01

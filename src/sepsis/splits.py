@@ -140,6 +140,29 @@ def load_site_b(cohort: pl.DataFrame) -> pl.DataFrame:
     return site_b
 
 
+def split_site_b(
+    cohort: pl.DataFrame,
+    train_fraction: float,
+    seed: int,
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Split site B into a training frame and a held-out evaluation frame.
+
+    AGENTS.md §2.2 forbids touching `training_setB`; §9 still requires the
+    matrix rows B→A and A+B→B. The resolution recorded in docs/decisions.md:
+    site B is split by patient into `b_train` (the §9 training data) and
+    `b_eval` (the external test set, scored exactly once per phase after every
+    design choice is frozen). `b_eval` keeps the §2.2 warning on every load.
+    """
+    site_b = load_site_b(cohort)  # warns every call, by design
+    b_train_ids, b_eval_ids = split_patients(
+        site_b.get_column("patient_id").unique(), train_fraction, seed
+    )
+    return (
+        site_b.filter(pl.col("patient_id").is_in(b_train_ids)),
+        site_b.filter(pl.col("patient_id").is_in(b_eval_ids)),
+    )
+
+
 def assert_disjoint(*splits: pl.DataFrame) -> None:
     """Raise if any `patient_id` appears in more than one split.
 

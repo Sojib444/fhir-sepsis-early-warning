@@ -117,6 +117,16 @@ class Config:
         return float(self.raw["splits"]["train_fraction"])
 
     @property
+    def site_b_train_fraction(self) -> float:
+        """The patient-fraction of site B carved off for the §9 training rows."""
+        return float(self.raw["splits"]["site_b_train_fraction"])
+
+    @property
+    def threshold_sweep_step(self) -> float:
+        """D5: granularity of the utility-max threshold sweep on site A."""
+        return float(self.raw["threshold"]["sweep_step"])
+
+    @property
     def windows(self) -> list[int]:
         """D4: feature window sizes in hours."""
         return list(self.raw["features"]["windows"])
