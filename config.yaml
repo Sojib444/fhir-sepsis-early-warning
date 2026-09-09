@@ -8,6 +8,8 @@ paths:
   interim: data/interim
   cohort: data/interim/cohort.parquet
   results: results
+  metrics: results/metrics.json
+  models: results/models
 
 data:
   sites:

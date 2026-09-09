@@ -1,0 +1,181 @@
+{
+  "feature_columns": [
+    "HR_missing",
+    "HR_last",
+    "O2Sat_missing",
+    "O2Sat_last",
+    "Temp_missing",
+    "Temp_last",
+    "SBP_missing",
+    "SBP_last",
+    "MAP_missing",
+    "MAP_last",
+    "DBP_missing",
+    "DBP_last",
+    "Resp_missing",
+    "Resp_last",
+    "EtCO2_missing",
+    "BaseExcess_missing",
+    "BaseExcess_last",
+    "HCO3_missing",
+    "HCO3_last",
+    "FiO2_missing",
+    "FiO2_last",
+    "pH_missing",
+    "pH_last",
+    "PaCO2_missing",
+    "PaCO2_last",
+    "SaO2_missing",
+    "SaO2_last",
+    "AST_missing",
+    "AST_last",
+    "BUN_missing",
+    "BUN_last",
+    "Alkalinephos_missing",
+    "Alkalinephos_last",
+    "Calcium_missing",
+    "Calcium_last",
+    "Chloride_missing",
+    "Chloride_last",
+    "Creatinine_missing",
+    "Creatinine_last",
+    "Bilirubin_direct_missing",
+    "Bilirubin_direct_last",
+    "Glucose_missing",
+    "Glucose_last",
+    "Lactate_missing",
+    "Lactate_last",
+    "Magnesium_missing",
+    "Magnesium_last",
+    "Phosphate_missing",
+    "Phosphate_last",
+    "Potassium_missing",
+    "Potassium_last",
+    "Bilirubin_total_missing",
+    "Bilirubin_total_last",
+    "TroponinI_missing",
+    "TroponinI_last",
+    "Hct_missing",
+    "Hct_last",
+    "Hgb_missing",
+    "Hgb_last",
+    "PTT_missing",
+    "PTT_last",
+    "WBC_missing",
+    "WBC_last",
+    "Fibrinogen_missing",
+    "Fibrinogen_last",
+    "Platelets_missing",
+    "Platelets_last",
+    "Age",
+    "Gender",
+    "HospAdmTime",
+    "ICULOS"
+  ],
+  "features": "minimal",
+  "hyperparameters": {
+    "max_iter": 2000,
+    "solver": "lbfgs"
+  },
+  "metrics": {
+    "accuracy": 0.9760622840464193,
+    "auprc": 0.08311797303053911,
+    "auroc": 0.7494092642305453,
+    "calibration": [
+      {
+        "bin": "0.00-0.10",
+        "mean_prediction": 0.017894067990265123,
+        "n": 154081,
+        "positive_rate": 0.02111876220948722
+      },
+      {
+        "bin": "0.10-0.20",
+        "mean_prediction": 0.13364554198368012,
+        "n": 1642,
+        "positive_rate": 0.15468940316686966
+      },
+      {
+        "bin": "0.20-0.30",
+        "mean_prediction": 0.24142982819708797,
+        "n": 399,
+        "positive_rate": 0.20551378446115287
+      },
+      {
+        "bin": "0.30-0.40",
+        "mean_prediction": 0.3465823318634317,
+        "n": 186,
+        "positive_rate": 0.1881720430107527
+      },
+      {
+        "bin": "0.40-0.50",
+        "mean_prediction": 0.4466793762883387,
+        "n": 145,
+        "positive_rate": 0.0896551724137931
+      },
+      {
+        "bin": "0.50-0.60",
+        "mean_prediction": 0.5435473636160087,
+        "n": 81,
+        "positive_rate": 0.07407407407407407
+      },
+      {
+        "bin": "0.60-0.70",
+        "mean_prediction": 0.6317567396209827,
+        "n": 29,
+        "positive_rate": 0.10344827586206896
+      },
+      {
+        "bin": "0.70-0.80",
+        "mean_prediction": 0.7302821654872084,
+        "n": 8,
+        "positive_rate": 0.125
+      },
+      {
+        "bin": "0.80-0.90",
+        "mean_prediction": 0.8137836052443939,
+        "n": 2,
+        "positive_rate": 0.0
+      },
+      {
+        "bin": "0.90-1.00",
+        "mean_prediction": null,
+        "n": 0,
+        "positive_rate": null
+      }
+    ],
+    "f_measure": 0.005307855626326964,
+    "n_hours": 156573,
+    "n_patients": 4067,
+    "prevalence": 0.023299036232300587,
+    "threshold": 0.5,
+    "utility": 0.0019496293650085512
+  },
+  "model": "logistic_regression",
+  "n_train_patients": 16269,
+  "n_val_patients": 4067,
+  "phase": "baseline",
+  "provenance": {
+    "git_commit": "55663152a4dbf1aaa1dd888c2bb8377e90a05caa",
+    "git_tree_dirty": true,
+    "input_data_sha256": {
+      "D:/Phd/fhir-sepsis-early-warning/data/interim/cohort.parquet": "cda08f19bb50607be9cca65a75595f0ee7abd50ddb61f21db3775c42272bac0f",
+      "data/raw/training_setA": "204438878f8da777e5df919a460f9c8a4bd5b720c1d73f1d3327f295c9df5822",
+      "data/raw/training_setB": "daffd8deba6ab7808dc0967c9f384a4203d44284fbd65cf1856ae7299f6e7ccc",
+      "src/sepsis/vendor/evaluate_sepsis_score.py": "26b8b26267ed32e8b7a7a27e45201cfc8c6640e717ba4cdc1f452b32f12b99e5"
+    },
+    "packages": {
+      "lightgbm": "4.7.0",
+      "numpy": "2.5.3",
+      "pandas": "2.3.3",
+      "polars": "1.44.1",
+      "pyarrow": "21.0.0",
+      "scikit-learn": "1.9.0",
+      "shap": "0.52.0"
+    },
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python_version": "3.12.14",
+    "pythonhashseed": null,
+    "seed": 20190801,
+    "timestamp_utc": "2026-09-09T00:58:07+00:00"
+  }
+}

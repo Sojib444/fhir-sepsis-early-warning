@@ -49,8 +49,8 @@ data: verify  ## Build data/interim/cohort.parquet and docs/data_notes.md
 
 # --- model (Phases 2-4) ------------------------------------------------------
 
-train:
-	@echo "make train — not implemented until Phase 2 (baseline and scoring harness)." && exit 1
+train: data  ## Fit and score the Phase 2 baseline (results/metrics.json)
+	$(PYTHON) -m sepsis.train baseline
 
 eval:
 	@echo "make eval — not implemented until Phase 3 (model and cross-site matrix)." && exit 1
