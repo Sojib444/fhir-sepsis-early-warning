@@ -127,6 +127,9 @@ class PatientSpec:
     no_labs: bool = False
     #: Write the rows to file in reverse ICULOS order.
     shuffle_rows: bool = False
+    #: First ICULOS value. 37% of real records begin part-way into the stay,
+    #: so `hour` (a row index) is not the ICU clock. See docs/data_notes.md.
+    iculos_start: int = 1
     #: {variable: (hour, value)} — deliberate data-entry errors, for D8.
     implausible: dict[str, tuple[int, float]] = field(default_factory=dict)
 
@@ -169,7 +172,14 @@ SPECS: tuple[PatientSpec, ...] = (
         "physiologically impossible values — D8",
         implausible={"HR": (5, 300.0), "Temp": (9, 0.0), "SBP": (12, -5.0)},
     ),
-    PatientSpec("p000013", "A", 72, "long stay, septic late", onset_hour=60),
+    PatientSpec(
+        "p000013",
+        "A",
+        72,
+        "long stay, septic late, record starts at ICULOS 5",
+        onset_hour=60,
+        iculos_start=5,
+    ),
     PatientSpec("p000014", "A", 12, "short stay, no Unit recorded", unit1=None, unit2=None),
     PatientSpec("p000015", "A", 40, "young patient", age=24.0, gender=0),
     PatientSpec("p000016", "A", 44, "elderly patient, septic", age=91.0, onset_hour=30),
@@ -266,7 +276,7 @@ def build_rows(spec: PatientSpec, rng: np.random.Generator) -> list[list[str]]:
         record["Unit1"] = spec.unit1
         record["Unit2"] = spec.unit2
         record["HospAdmTime"] = spec.hosp_adm_time
-        record["ICULOS"] = float(hour + 1)
+        record["ICULOS"] = float(spec.iculos_start + hour)
         record["SepsisLabel"] = float(label)
 
         rows.append([_format(record[col]) for col in PSV_COLUMNS])

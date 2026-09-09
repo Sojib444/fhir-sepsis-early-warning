@@ -54,6 +54,13 @@ def parse_psv(
     out-of-order file would otherwise silently corrupt every backward-looking
     feature. Duplicate ICULOS values are rejected, because there is no
     defensible way to decide which of two rows for the same hour is real.
+
+    `hour` is a position in the record, **not** the ICU hour. Checked against
+    the data and reported in docs/data_notes.md: ICULOS is gap-free for every
+    patient, so consecutive rows really are consecutive hours and a window of
+    `k` rows is a window of `k` hours — but a substantial share of records
+    begin at ICULOS > 1, so `hour = 0` is not the same clock reading for every
+    patient. Use `ICULOS` wherever the ICU hour itself is what matters.
     """
     path = Path(path)
     pid = patient_id if patient_id is not None else patient_id_from_path(path)
@@ -145,7 +152,7 @@ def load_site(
             # a page of multiprocessing internals that says nothing useful.
             raise RuntimeError(
                 "the worker pool died while parsing. On Windows and macOS this "
-                "is usually a caller without an `if __name__ == \"__main__\":` "
+                'is usually a caller without an `if __name__ == "__main__":` '
                 "guard, because spawning a worker re-imports the calling "
                 "module. Add the guard, or call load_site(..., max_workers=1)."
             ) from error

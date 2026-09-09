@@ -117,6 +117,28 @@ def test_physiologically_impossible_values_survive_parsing_untouched(cohort: pl.
     assert rows.get_column("SBP").to_list()[12] == -5.0
 
 
+def test_a_record_starting_after_icu_hour_one_keeps_both_clocks(cohort: pl.DataFrame):
+    """37% of real records begin part-way into the stay (docs/data_notes.md).
+
+    `hour` must stay a 0-based row index while `ICULOS` keeps the real ICU
+    hour, and the two must not be conflated.
+    """
+    rows = _hours(cohort, "p000013")
+    assert rows.get_column("hour").to_list()[:3] == [0, 1, 2]
+    assert rows.get_column("ICULOS").to_list()[:3] == [5.0, 6.0, 7.0]
+
+    # Contiguity is what window features depend on, so assert it directly.
+    iculos = rows.get_column("ICULOS").to_list()
+    assert iculos == [float(i) for i in range(5, 5 + len(iculos))]
+
+
+def test_iculos_is_gap_free_for_every_fixture_patient(cohort: pl.DataFrame):
+    """A gap would mean a window of k rows is not a window of k hours."""
+    for pid in cohort.get_column("patient_id").unique().to_list():
+        iculos = _hours(cohort, pid).get_column("ICULOS").to_list()
+        assert iculos == [iculos[0] + i for i in range(len(iculos))]
+
+
 def test_missing_unit_columns_stay_null(cohort: pl.DataFrame):
     rows = _hours(cohort, "p000014")
     assert rows.get_column("Unit1").null_count() == rows.height

@@ -11,6 +11,7 @@ Sections, and the requirement each one satisfies:
   Prevalence        §7.2          — patient-level and hour-level, per site
   Length of stay    §7.2          — median and quartiles per site
   Label semantics   §7.4          — the §5 claim, checked against the data
+  Record structure  D4            — is a row an hour? every window depends on it
   Missingness       §7.2          — all 40 variables, per site
   Ordering culture  D6.2          — how often each lab is actually ordered
   D8 evidence       §24           — ranges and out-of-range counts, per site
@@ -320,6 +321,97 @@ def section_label_semantics(cohort: pl.DataFrame) -> str:
     )
 
 
+def section_record_structure(cohort: pl.DataFrame) -> str:
+    """Does a row index equal an hour? Every window feature depends on this.
+
+    Checked rather than assumed, because if ICULOS had gaps then "the last 6
+    rows" would not be "the last 6 hours" and every D4 window would be wrong in
+    a way nothing downstream would reveal.
+    """
+    rows = []
+    total_gapped = 0
+    total_late = 0
+    total_patients = 0
+    for site in _sites(cohort):
+        per_patient = (
+            cohort.filter(pl.col("site") == site)
+            .group_by("patient_id")
+            .agg(
+                pl.col("ICULOS").min().alias("first"),
+                pl.col("ICULOS").max().alias("last"),
+                pl.len().alias("n_rows"),
+            )
+        )
+        gapped = per_patient.filter(
+            (pl.col("last") - pl.col("first") + 1) != pl.col("n_rows")
+        ).height
+        total_gapped += gapped
+        starts_late = per_patient.filter(pl.col("first") != 1).height
+        total_late += starts_late
+        total_patients += per_patient.height
+        rows.append(
+            [
+                site,
+                f"{per_patient.height:,}",
+                f"{gapped:,}",
+                f"{starts_late:,}",
+                f"{100.0 * starts_late / per_patient.height:.1f}%",
+                f"{per_patient.get_column('first').max():g}",
+            ]
+        )
+
+    text = (
+        "## Record structure — is a row an hour?\n\n"
+        "Every window in D4 is defined in hours, but the pipeline addresses "
+        "rows. These are the same thing only if `ICULOS` increments by one with "
+        "no gaps, so that is checked here rather than assumed.\n\n"
+        + _table(
+            rows,
+            [
+                "Site",
+                "Patients",
+                "With ICULOS gaps",
+                "Starting after hour 1",
+                "% starting late",
+                "Latest start",
+            ],
+        )
+    )
+
+    if total_gapped == 0:
+        text += (
+            "\n\n**No patient at either site has a gap in `ICULOS`.** Consecutive "
+            "rows are consecutive hours, so a window of *k* rows is a window of "
+            "*k* hours and the D4 windows mean what they say.\n"
+        )
+        if total_late:
+            share = 100.0 * total_late / total_patients
+            text += (
+                f"\n**{total_late:,} of {total_patients:,} records ({share:.1f}%) "
+                "do not start at `ICULOS = 1`** — the record begins part-way into "
+                "the ICU stay. The consequence: `hour` is a position within the "
+                "record, not a reading of the ICU clock, and `hour = 0` is a "
+                "different moment for different patients. Backward-looking "
+                "features are unaffected, since they need only contiguity, but "
+                "anything comparing patients *at the same point in their stay* "
+                "must use `ICULOS`, not `hour`.\n"
+            )
+        else:
+            text += (
+                "\nEvery record also starts at `ICULOS = 1`, so here `hour` and "
+                "the ICU clock coincide. Do not rely on that: it is a property "
+                "of this particular cohort, not a guarantee.\n"
+            )
+    else:
+        text += (
+            f"\n\n> **FLAG.** {total_gapped} patients have gaps in `ICULOS`. "
+            "Row-based windows are therefore **not** hour-based windows for "
+            "those patients, and every D4 feature would be wrong for them. This "
+            "must be resolved before Phase 3.\n"
+        )
+    return text
+
+
 def section_missingness(cohort: pl.DataFrame) -> str:
     sites = _sites(cohort)
     rows = []
@@ -499,6 +591,7 @@ def build_document(cohort: pl.DataFrame, min_hours: int, seed: int, cohort_path:
         section_prevalence(cohort),
         section_length_of_stay(cohort),
         section_label_semantics(cohort),
+        section_record_structure(cohort),
         section_missingness(cohort),
         section_ordering_culture(cohort),
         section_d8_evidence(cohort),
