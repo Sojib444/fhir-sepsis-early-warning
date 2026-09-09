@@ -1,0 +1,106 @@
+<a routerLink="/patients" class="back">← Back to list</a>
+
+@if (error(); as message) {
+  <p class="error">{{ message }}</p>
+}
+
+@if (loading()) {
+  <p>Scoring every hour…</p>
+}
+
+@if (data(); as d) {
+  <h2>Patient {{ d.patientId }}</h2>
+
+  <div class="meta">
+    Operating threshold {{ pct(d.threshold) }} ·
+    True onset
+    @if (d.onsetHour === null) {
+      not labelled in this stay
+    } @else {
+      hour {{ d.onsetHour }}
+    }
+  </div>
+
+  <svg
+    [attr.viewBox]="'0 0 ' + 760 + ' ' + 280"
+    class="chart"
+    role="img"
+    aria-label="Risk trajectory over time"
+  >
+    <rect [attr.x]="PL" [attr.y]="PT" [attr.width]="PLOT_W" [attr.height]="PLOT_H" class="grid-bg" />
+    @for (r of riskTicks(); track r) {
+      <line
+        [attr.x1]="PL" [attr.x2]="W - PR"
+        [attr.y1]="y(r)" [attr.y2]="y(r)"
+        class="grid"
+      />
+      <text [attr.x]="PL - 6" [attr.y]="y(r) + 4" class="axis-label" text-anchor="end">
+        {{ pct(r) }}
+      </text>
+    }
+    @for (h of hourTicks(); track h) {
+      <line
+        [attr.x1]="x(h)" [attr.x2]="x(h)"
+        [attr.y1]="PT" [attr.y2]="H - PB"
+        class="grid"
+      />
+      <text [attr.x]="x(h)" [attr.y]="H - PB + 16" class="axis-label" text-anchor="middle">
+        {{ h }}
+      </text>
+    }
+    <text [attr.x]="PL" [attr.y]="H - 4" class="axis-label">Hour (0-based)</text>
+
+    <line [attr.x1]="PL" [attr.x2]="W - PR" [attr.y1]="thresholdY()" [attr.y2]="thresholdY()"
+      class="threshold" />
+    <text [attr.x]="W - PR - 4" [attr.y]="thresholdY() - 5" class="threshold-label" text-anchor="end">
+      operating threshold {{ pct(d.threshold) }}
+    </text>
+
+    @if (d.onsetHour !== null) {
+      <line [attr.x1]="onsetX()" [attr.x2]="onsetX()" [attr.y1]="PT" [attr.y2]="H - PB"
+        class="onset" />
+      <text [attr.x]="onsetX()" [attr.y]="PT + 12" class="onset-label" text-anchor="middle">
+        true onset
+      </text>
+    }
+
+    @if (polyline()) {
+      <polyline [attr.points]="polyline()" class="risk-line" />
+    }
+    @for (p of d.hours; track p.hour) {
+      <circle
+        [attr.cx]="x(p.hour)" [attr.cy]="y(p.risk)" r="3.5"
+        [class.selected]="p.hour === (selectedHour() ?? d.shapHour)"
+        (click)="selectHour(p.hour)"
+        class="point"
+      >
+        <title>h{{ p.hour }}: {{ pct(p.risk) }}</title>
+      </circle>
+    }
+  </svg>
+
+  <p class="hint">Click a point to inspect that hour's drivers.</p>
+
+  <h3>What drives the risk at hour {{ selectedHour() ?? d.shapHour }}</h3>
+  <div class="waterfall">
+    @for (c of waterfall(); track c; let i = $index) {
+      @let widthPct = (c.value >= 0 ? c.value : -c.value) / barMax(waterfall()) * 45;
+      <div class="row">
+        <span class="name">{{ c.feature }}</span>
+        <div class="track">
+          @if (c.value >= 0) {
+            <div class="bar pos" [style.width.%]="widthPct"></div>
+          } @else {
+            <div class="bar neg" [style.width.%]="widthPct"></div>
+          }
+        </div>
+        <span class="value">{{ c.value >= 0 ? '+' : '' }}{{ fmt(c.value) }}</span>
+      </div>
+    } @empty {
+      <p>No SHAP contributions returned.</p>
+    }
+  </div>
+  <p class="hint">
+    Positive pushes risk up; negative pulls it down. Research prototype — not for clinical use.
+  </p>
+}

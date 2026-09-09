@@ -61,7 +61,8 @@ public static class TestHelpers
             {"alert_burden":[
               {"threshold":0.02,"sensitivity":0.91,"ppv":0.02,"alerts_per_100_icu_days":8.1},
               {"threshold":0.50,"sensitivity":0.41,"ppv":0.11,"alerts_per_100_icu_days":1.7}
-            ]}
+            ],
+            "alert_burden_d5":{"threshold":0.14,"sensitivity":0.66,"ppv":0.06,"alerts_per_100_icu_days":3.5}}
             """);
         return path;
     }

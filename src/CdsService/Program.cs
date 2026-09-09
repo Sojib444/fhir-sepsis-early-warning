@@ -92,10 +92,14 @@ static string? ExtractPrefetchObservations(CdsHookRequest request)
 }
 
 // --- dashboard endpoints (Phase 7) -------------------------------------------
+// Grouped under /api so the Angular app can call them without colliding with
+// its own client-side routes; nginx/proxy strips the prefix (§13).
+
+var dashboard = app.MapGroup("/api");
 
 // Patient list with current risk (§13.1). Risk per patient is computed by the
 // card path; the list itself is FHIR Patient ids, oldest first.
-app.MapGet("/patients", async (int? limit, IHapiSource hapi, IModelScorer model) =>
+dashboard.MapGet("/patients", async (int? limit, IHapiSource hapi, IModelScorer model) =>
 {
     IReadOnlyList<string> ids = await hapi.ListPatientsAsync(limit ?? 50);
     var assets = new List<object>();
@@ -121,7 +125,7 @@ app.MapGet("/patients", async (int? limit, IHapiSource hapi, IModelScorer model)
 });
 
 // Risk trajectory over time with the true onset hour (§13.2).
-app.MapPost("/sepsis-risk/trajectory", async (TrajectoryRequest request, TrajectoryService service) =>
+dashboard.MapPost("/sepsis-risk/trajectory", async (TrajectoryRequest request, TrajectoryService service) =>
 {
     if (string.IsNullOrWhiteSpace(request.PatientId))
     {
@@ -139,7 +143,7 @@ app.MapPost("/sepsis-risk/trajectory", async (TrajectoryRequest request, Traject
 });
 
 // Threshold slider data from the precomputed alert-burden sweep (§13.3).
-app.MapGet("/sepsis-risk/sweep", (IConfiguration config) =>
+dashboard.MapGet("/sepsis-risk/sweep", (IConfiguration config) =>
 {
     string? path = config["SWEEP_PATH"] ?? Path.Combine(Path.GetFullPath("."), "rigor.json");
     if (!File.Exists(path))
@@ -151,7 +155,18 @@ app.MapGet("/sepsis-risk/sweep", (IConfiguration config) =>
     {
         return Results.NotFound("rigor.json has no alert_burden key");
     }
-    return Results.Text(sweep.GetRawText(), "application/json");
+    JsonElement? d5 = document.RootElement.TryGetProperty("alert_burden_d5", out JsonElement d5Element)
+        ? d5Element
+        : null;
+    // The rows + operating point are materialized inside the using block so the
+    // response is fully serialized before the document is disposed.
+    string json = JsonSerializer.Serialize(new
+    {
+        rows = JsonSerializer.Deserialize<object>(sweep.GetRawText()),
+        operating_threshold = d5?.GetProperty("threshold").GetDouble(),
+        operating = d5 is null ? null : JsonSerializer.Deserialize<object>(d5.Value.GetRawText()),
+    });
+    return Results.Text(json, "application/json");
 });
 
 await app.RunAsync();

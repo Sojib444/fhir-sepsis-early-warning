@@ -1,0 +1,15 @@
+<app-disclaimer />
+
+<header>
+  <h1>Sepsis early-warning</h1>
+  <nav>
+    <a routerLink="/patients" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+      Patients
+    </a>
+    <a routerLink="/sweep" routerLinkActive="active">Threshold sweep</a>
+  </nav>
+</header>
+
+<main>
+  <router-outlet />
+</main>

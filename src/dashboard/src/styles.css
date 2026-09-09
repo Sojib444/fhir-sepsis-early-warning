@@ -1,0 +1,37 @@
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-family:
+    'Segoe UI', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
+}
+
+header {
+  align-items: baseline;
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.75rem 1rem;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+nav a {
+  color: #1f4e79;
+  margin-right: 1rem;
+  padding-bottom: 0.25rem;
+  text-decoration: none;
+}
+
+main {
+  padding: 0 1rem 2rem;
+  max-width: 820px;
+}
+
+h2 {
+  margin-top: 0.25rem;
+}

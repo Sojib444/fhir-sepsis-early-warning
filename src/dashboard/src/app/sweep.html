@@ -1,0 +1,46 @@
+<h2>Alert burden — threshold sweep</h2>
+<p>
+  Move the slider to see how sensitivity, positive predictive value and alert
+  burden change with the operating threshold. The data is precomputed from a
+  held-out cohort (see rigor.json).
+</p>
+
+@if (error(); as message) {
+  <p class="error">{{ message }}</p>
+}
+
+@if (response(); as r) {
+  <input
+    type="range"
+    [min]="min()"
+    [max]="max()"
+    step="0.01"
+    [value]="selected()"
+    (input)="onInput($event)"
+  />
+
+  @if (current(); as c) {
+    <p>
+      Operating threshold <strong>{{ pct(c.threshold) }}</strong>
+      <span class="operating">
+        (frozen model threshold: {{ pct(r.operating_threshold) }})
+      </span>
+    </p>
+
+    <div class="row">
+      <span class="label">Sensitivity</span>
+      <div class="track"><div class="bar" [style.width.%]="c.sensitivity * 100"></div></div>
+      <span class="value">{{ pct(c.sensitivity) }}</span>
+    </div>
+    <div class="row">
+      <span class="label">Positive predictive value</span>
+      <div class="track"><div class="bar" [style.width.%]="c.ppv * 100"></div></div>
+      <span class="value">{{ pct(c.ppv) }}</span>
+    </div>
+    <div class="row">
+      <span class="label">Alerts per 100 ICU-days</span>
+      <div class="track"></div>
+      <span class="value">{{ alerts(c.alerts_per_100_icu_days) }}</span>
+    </div>
+  }
+}

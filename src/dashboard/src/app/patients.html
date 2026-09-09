@@ -1,0 +1,32 @@
+<h2>Patients — current sepsis risk</h2>
+
+@if (error(); as message) {
+  <p class="error">{{ message }}</p>
+}
+
+<div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Patient</th>
+        <th>Current risk</th>
+        <th>Indicator</th>
+        <th>Operating threshold</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.patientId) {
+        <tr data-clickable (click)="open(row.patientId)">
+          <td>{{ row.patientId }}</td>
+          <td [class.high]="row.risk >= row.threshold" [class.low]="row.risk < row.threshold">
+            {{ pct(row.risk) }}
+          </td>
+          <td><span class="chip" [class]="row.indicator">{{ row.indicator }}</span></td>
+          <td>{{ pct(row.threshold) }}</td>
+        </tr>
+      } @empty {
+        <tr><td colspan="4">Loading…</td></tr>
+      }
+    </tbody>
+  </table>
+</div>

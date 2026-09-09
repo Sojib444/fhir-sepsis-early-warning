@@ -105,7 +105,7 @@ public class CdsEndpointTests : IClassFixture<WebApplicationFactory<Program>>
     {
         using HttpClient client = WithFakes().CreateClient();
 
-        HttpResponseMessage response = await client.GetAsync("/patients?limit=5");
+        HttpResponseMessage response = await client.GetAsync("/api/patients?limit=5");
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
 
         using JsonDocument doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
@@ -127,7 +127,7 @@ public class CdsEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         using HttpClient client = local.CreateClient();
 
         var payload = new JsonObject { ["patientId"] = "p1" };
-        HttpResponseMessage response = await client.PostAsJsonAsync("/sepsis-risk/trajectory", payload);
+        HttpResponseMessage response = await client.PostAsJsonAsync("/api/sepsis-risk/trajectory", payload);
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
 
         using JsonDocument doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
@@ -154,7 +154,7 @@ public class CdsEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         using HttpClient client = local.CreateClient();
 
         var payload = new JsonObject { ["patientId"] = "p-void" };
-        HttpResponseMessage response = await client.PostAsJsonAsync("/sepsis-risk/trajectory", payload);
+        HttpResponseMessage response = await client.PostAsJsonAsync("/api/sepsis-risk/trajectory", payload);
         Assert.Equal(System.Net.HttpStatusCode.UnprocessableEntity, response.StatusCode);
     }
 
@@ -175,13 +175,15 @@ public class CdsEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         });
 
         using HttpClient client = local.CreateClient();
-        HttpResponseMessage response = await client.GetAsync("/sepsis-risk/sweep");
+        HttpResponseMessage response = await client.GetAsync("/api/sepsis-risk/sweep");
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
 
         using JsonDocument doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-        Assert.Equal(0.02, doc.RootElement[0].GetProperty("threshold").GetDouble(), 5);
-        Assert.True(doc.RootElement[0].TryGetProperty("sensitivity", out _));
-        Assert.True(doc.RootElement[0].TryGetProperty("alerts_per_100_icu_days", out _));
+        Assert.Equal(0.02, doc.RootElement.GetProperty("rows")[0].GetProperty("threshold").GetDouble(), 5);
+        Assert.True(doc.RootElement.GetProperty("rows")[0].TryGetProperty("sensitivity", out _));
+        Assert.True(doc.RootElement.GetProperty("rows")[0].TryGetProperty("alerts_per_100_icu_days", out _));
+        Assert.Equal(0.14, doc.RootElement.GetProperty("operating_threshold").GetDouble(), 5);
+        Assert.Equal(3.5, doc.RootElement.GetProperty("operating").GetProperty("alerts_per_100_icu_days").GetDouble(), 5);
     }
 
     private WebApplicationFactory<Program> WithFakes(PatientSnapshot? snapshot = null) =>

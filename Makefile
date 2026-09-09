@@ -21,7 +21,7 @@ PYTHON  := $(UV) run python
 COHORT  := data/interim/cohort.parquet
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data fetch fixtures verify train eval rigor up down fhirload fhir-export fhir-load-demo test test-fast lint format clean
+.PHONY: help setup data fetch fixtures verify train eval rigor up down fhirload fhir-export fhir-load-demo dashboard test test-fast lint format clean
 
 help:  ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -63,7 +63,7 @@ rigor: eval  ## Phase 4: calibration, subgroups, alert burden, transfer curve
 
 # --- services (Phases 5-7) ---------------------------------------------------
 
-up:  ## Start the stack: HAPI + model service + CDS service
+up:  ## Start the stack: HAPI + model service + CDS service + dashboard
 	docker compose up -d --build
 
 down:  ## Stop the stack
@@ -77,6 +77,9 @@ fhir-export:  ## Export the cohort CSV the FhirLoader consumes
 
 fhir-load-demo: fhir-export  ## Load 200 patients into HAPI (docker compose up first)
 	dotnet run --project src/FhirLoader -- --count 200
+
+dashboard:  ## Dev-server for the dashboard (proxies /api to the local CDS service)
+	cd src/dashboard && npm ci && npm start
 
 # --- quality -----------------------------------------------------------------
 

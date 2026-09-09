@@ -1,0 +1,119 @@
+.back {
+  color: #1f4e79;
+  text-decoration: none;
+}
+
+.error {
+  color: #a00;
+}
+
+.chart {
+  border: 1px solid #d9d9d9;
+  display: block;
+  margin: 0.5rem 0;
+  max-width: 100%;
+}
+
+.grid-bg {
+  fill: #fff;
+  stroke: none;
+}
+
+.grid {
+  stroke: #eeeeee;
+  stroke-width: 1;
+}
+
+.axis-label {
+  font-size: 11px;
+  fill: #666;
+}
+
+.risk-line {
+  fill: none;
+  stroke: #1f4e79;
+  stroke-width: 2;
+}
+
+.threshold {
+  stroke: #b3403a;
+  stroke-dasharray: 5 4;
+  stroke-width: 1.5;
+}
+
+.threshold-label {
+  fill: #b3403a;
+  font-size: 11px;
+}
+
+.onset {
+  stroke: #2d7d46;
+  stroke-dasharray: 3 3;
+  stroke-width: 2;
+}
+
+.onset-label {
+  fill: #2d7d46;
+  font-size: 11px;
+}
+
+.point {
+  cursor: pointer;
+  fill: #1f4e79;
+}
+
+.point.selected {
+  fill: #b3403a;
+}
+
+.hint {
+  color: #777;
+  font-size: 0.85rem;
+}
+
+.waterfall {
+  max-width: 720px;
+}
+
+.row {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 14rem 1fr 4rem;
+  padding: 0.15rem 0;
+}
+
+.name {
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track {
+  background: #f2f2f2;
+  border-radius: 4px;
+  height: 14px;
+  position: relative;
+  width: 100%;
+}
+
+.bar {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.bar.pos {
+  background: #b3403a;
+  margin-left: 50%;
+}
+
+.bar.neg {
+  background: #1f79b3;
+  margin-right: 50%;
+}
+
+.value {
+  font-size: 0.8rem;
+  text-align: right;
+}

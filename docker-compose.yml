@@ -42,10 +42,31 @@ services:
     environment:
       HAPI_BASE: http://hapi:8080/fhir
       MODEL_BASE: http://model-api:8000
+      # Optional: mount results/rigor.json into the container as /app/rigor.json
+      # to power the dashboard's threshold-sweep view (Phase 4 output).
+      SWEEP_PATH: /app/rigor.json
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8990/cds-services"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
     depends_on:
       hapi:
         condition: service_healthy
       model-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: src/dashboard
+      dockerfile: Dockerfile
+    container_name: sepsis-dashboard
+    ports:
+      - "4200:80"
+    depends_on:
+      cds:
         condition: service_healthy
     restart: unless-stopped
 
