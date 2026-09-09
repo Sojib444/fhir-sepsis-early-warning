@@ -63,8 +63,8 @@ rigor: eval  ## Phase 4: calibration, subgroups, alert burden, transfer curve
 
 # --- services (Phases 5-7) ---------------------------------------------------
 
-up:  ## Start the stack: HAPI FHIR only until Phases 6-7 are wired
-	docker compose up -d hapi
+up:  ## Start the stack: HAPI + model service + CDS service
+	docker compose up -d --build
 
 down:  ## Stop the stack
 	docker compose down

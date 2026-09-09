@@ -17,5 +17,37 @@ services:
       - hapi-data:/data/hapi
     restart: unless-stopped
 
+  model-api:
+    build:
+      context: .
+      dockerfile: src/model_api/Dockerfile
+    container_name: sepsis-model
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u,sys; sys.exit(0 if u.urlopen('http://localhost:8000/').status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  cds:
+    build:
+      context: .
+      dockerfile: src/CdsService/Dockerfile
+    container_name: sepsis-cds
+    ports:
+      - "8990:8990"
+    environment:
+      HAPI_BASE: http://hapi:8080/fhir
+      MODEL_BASE: http://model-api:8000
+    depends_on:
+      hapi:
+        condition: service_healthy
+      model-api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   hapi-data:
