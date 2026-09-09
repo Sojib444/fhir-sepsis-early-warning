@@ -31,6 +31,26 @@ U_FP = -0.05
 U_TN = 0
 
 
+def brier_score(labels: np.ndarray, probs: np.ndarray) -> float:
+    """Mean squared error between probabilities and 0/1 labels (Phase 4)."""
+    labels = np.asarray(labels, dtype=np.int64)
+    probs = np.asarray(probs, dtype=np.float64)
+    return float(np.mean((probs - labels) ** 2))
+
+
+def alerts_per_100_icu_days(predictions: np.ndarray) -> float:
+    """Alert-hours per 100 ICU-days.
+
+    An alert is one predicted hour at or above threshold; ICU-days are
+    patient-hours / 24. The unit is what a clinical reader can compare to an
+    alarm-burden budget (AGENTS.md §10.3).
+    """
+    predictions = np.asarray(predictions)
+    n_alerts = float(np.count_nonzero(predictions))
+    n_icu_hours = float(predictions.size)
+    return 100.0 * n_alerts * 24.0 / n_icu_hours if n_icu_hours else float("nan")
+
+
 def reliability_table(
     labels: np.ndarray, probs: np.ndarray, bins: int = 10
 ) -> list[dict[str, Any]]:

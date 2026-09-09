@@ -58,6 +58,9 @@ train-baseline: data  ## Phase 2: diagnostic-regression baseline
 eval: train  ## Phase 3/4: cross-site matrix, drift, SHAP, calibration, transfer
 	$(PYTHON) scripts/eval_matrix.py
 
+rigor: eval  ## Phase 4: calibration, subgroups, alert burden, transfer curve
+	$(PYTHON) scripts/eval_rigor.py
+
 # --- services (Phases 5-7) ---------------------------------------------------
 
 up:

@@ -317,7 +317,9 @@ def search_window(config, designs: dict[str, DesignFiles]) -> tuple[dict, list[d
                     num_leaves=num_leaves,
                     min_child_samples=min_child_samples,
                 )
-                model = lgb.train(params, train_set, num_boost_round=n_rounds, verbose_eval=False)
+                model = lgb.train(
+                    params, train_set, num_boost_round=n_rounds, callbacks=[lgb.log_evaluation(0)]
+                )
                 scored = _predict_probs(model, designs["a_val"])
                 metrics = evaluate.run_evaluation(
                     scored["labels"], scored["probs"], scored["pids"], threshold=0.5
@@ -352,7 +354,9 @@ def _train_on(config, design: DesignFiles, params: dict, n_rounds: int):
         feature_name=columns,
         free_raw_data=True,
     )
-    model = lgb.train(params, train_set, num_boost_round=n_rounds, verbose_eval=False)
+    model = lgb.train(
+        params, train_set, num_boost_round=n_rounds, callbacks=[lgb.log_evaluation(0)]
+    )
     del train_set
     gc.collect()
     return model
