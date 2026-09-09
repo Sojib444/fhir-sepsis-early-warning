@@ -122,3 +122,18 @@ Do not maintain two copies of the spec — they will drift.
 - The observed range and out-of-range counts for every variable, per site, are reported in `docs/data_notes.md` so the statement above is checkable.
 
 **Rejected.** Clipping to clinically plausible bounds (a clipped error becomes indistinguishable from a genuine boundary value); setting out-of-range values to missing (converts recorded observations into absences).
+
+---
+
+## Site-B training/eval split (methodological note, recorded 2026-09-09)
+
+**Context.** `AGENTS.md` §2.2 states site B is a held-out external test set and is never used for training; §9's matrix nevertheless requires the rows B→A and A+B→B. These conflict unless the meaning of "held out" is pinned down.
+
+**Resolution.** Site B is split *by patient*, deterministically (same seed as everything else), `site_b_train_fraction=0.8`:
+
+- **`b_train`** — the 80% slice. This is the §9 training data: it is used for the B→A and A+B→B rows. It is **not** used for hyperparameter selection (the grid winner is chosen on site-A validation only, AGENTS.md §9.2) or for the utility-max threshold (D5, site-A validation only).
+- **`b_eval`** — the held-out 20%. This is the external test set. It is scored **exactly once per phase, after every design choice is frozen**, keeps the §2.2 stderr warning on every access, and its 20% size means the 4-cell matrix is honest about the true size of the site-B evaluation pool.
+
+**Strictness that is preserved from §2.2.** No patient appears in both `b_train` and `b_eval`. `b_eval` is never trained on, never used for tuning, never used for imputation/scaling/calibration statistics, and never used for design iteration. If a `b_eval` score looks bad it is reported, never fixed by touching `b_eval`.
+
+This is a working definition recorded here so recent commits do not silently redefine `training_setB`. No other §3 decision is changed.

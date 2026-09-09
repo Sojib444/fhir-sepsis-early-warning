@@ -81,6 +81,7 @@ def build_window_design(
     if frame.height == 0:
         raise ValueError("cannot build a design for an empty cohort")
 
+    npy_path.parent.mkdir(parents=True, exist_ok=True)
     total = frame.height
     mm = np.lib.format.open_memmap(
         npy_path, mode="w+", dtype=np.float32, shape=(total, len(columns))

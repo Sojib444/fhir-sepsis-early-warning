@@ -49,7 +49,10 @@ data: verify  ## Build data/interim/cohort.parquet and docs/data_notes.md
 
 # --- model (Phases 2-4) ------------------------------------------------------
 
-train: data  ## Fit and score the Phase 2 baseline (results/metrics.json)
+train: data  ## Phase 3: build designs, grid search, LightGBM models (site-A cells)
+	$(PYTHON) -m sepsis.train window
+
+train-baseline: data  ## Phase 2: diagnostic-regression baseline
 	$(PYTHON) -m sepsis.train baseline
 
 eval:
