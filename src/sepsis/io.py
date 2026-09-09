@@ -15,6 +15,7 @@ import io as _io
 import os
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 
 import polars as pl
@@ -124,15 +125,30 @@ def load_site(
     *,
     max_workers: int | None = None,
 ) -> pl.DataFrame:
-    """Parse every patient file for one site, in parallel."""
+    """Parse every patient file for one site, in parallel.
+
+    On Windows and macOS, worker processes are *spawned*, which re-imports the
+    calling module. A caller that runs this at import time must therefore guard
+    its entry point with `if __name__ == "__main__":`, or pass `max_workers=1`.
+    """
     files = list_patient_files(site_dir)
     batches = [(batch, site) for batch in _batched(files, _BATCH_SIZE)]
 
     if max_workers == 1:  # serial path, used by tests and small fixtures
         payloads = [_parse_batch(b) for b in batches]
     else:
-        with ProcessPoolExecutor(max_workers=max_workers) as pool:
-            payloads = list(pool.map(_parse_batch, batches))
+        try:
+            with ProcessPoolExecutor(max_workers=max_workers) as pool:
+                payloads = list(pool.map(_parse_batch, batches))
+        except BrokenProcessPool as error:
+            # Almost always the missing __main__ guard above. The raw error is
+            # a page of multiprocessing internals that says nothing useful.
+            raise RuntimeError(
+                "the worker pool died while parsing. On Windows and macOS this "
+                "is usually a caller without an `if __name__ == \"__main__\":` "
+                "guard, because spawning a worker re-imports the calling "
+                "module. Add the guard, or call load_site(..., max_workers=1)."
+            ) from error
 
     return pl.concat(
         [pl.read_ipc(_io.BytesIO(payload)) for payload in payloads],
