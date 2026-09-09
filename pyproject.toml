@@ -18,6 +18,7 @@ dependencies = [
     # pair that predates Python 3.12 and the build fails.
     "numba>=0.60,<1",
     "matplotlib>=3.9,<4",
+    "scipy>=1.13,<2",
     "pyyaml>=6.0,<7",
 ]
 
@@ -43,6 +44,7 @@ packages = ["src/sepsis"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+pythonpath = ["."]  # makes scripts/ (and its packages) importable with the src layout
 markers = [
     "realdata: needs data/raw/ populated; skipped when absent (not run in CI)",
     "integration: needs docker compose up (tier 4)",

@@ -126,6 +126,10 @@ class Config:
         """D5: granularity of the utility-max threshold sweep on site A."""
         return float(self.raw["threshold"]["sweep_step"])
 
+    def result_path(self, filename: str) -> Path:
+        """A file directly under `paths.results`."""
+        return self.path("results") / filename
+
     @property
     def windows(self) -> list[int]:
         """D4: feature window sizes in hours."""

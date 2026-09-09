@@ -55,8 +55,8 @@ train: data  ## Phase 3: build designs, grid search, LightGBM models (site-A cel
 train-baseline: data  ## Phase 2: diagnostic-regression baseline
 	$(PYTHON) -m sepsis.train baseline
 
-eval:
-	@echo "make eval — not implemented until Phase 3 (model and cross-site matrix)." && exit 1
+eval: train  ## Phase 3/4: cross-site matrix, drift, SHAP, calibration, transfer
+	$(PYTHON) scripts/eval_matrix.py
 
 # --- services (Phases 5-7) ---------------------------------------------------
 
