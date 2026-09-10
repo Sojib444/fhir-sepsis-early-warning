@@ -58,8 +58,13 @@ VARIABLES = [
 STATIC = ["Age", "Gender", "Unit1", "Unit2", "ICULOS"]
 
 
-def export(config, out: Path, site: str | None = None, limit: int | None = None,
-           cohort_path: Path | None = None) -> Path:
+def export(
+    config,
+    out: Path,
+    site: str | None = None,
+    limit: int | None = None,
+    cohort_path: Path | None = None,
+) -> Path:
     cohort = read_cohort(cohort_path or config.path("cohort"))
     if site:
         cohort = cohort.filter(pl.col("site") == site)
