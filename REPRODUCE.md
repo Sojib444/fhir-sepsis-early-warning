@@ -150,10 +150,15 @@ make fhir-load-demo   # loads 200 patients into HAPI via the .NET loader
 
 ## 7. The deployed demo
 
-`deploy/README.md` covers one-time AWS bootstrap, the `v*`-tag deploy path, the
-demo seed subset, cost estimate and teardown. The workflow runs the identical
-pipeline of §4–5 on the tag's commit before publishing images, so the served
-model is the pipeline's own output.
+The Deploy workflow (`.github/workflows/deploy.yml`, `v*` tags only) does NOT
+retrain: PhysioNet blocks GitHub runner IPs (decisions D11/D12), so §5 is run
+once on a machine that holds the data and the frozen artifacts are committed.
+The workflow then asserts they exist, bakes them into the `model-api` image,
+publishes the four images to GHCR and redeploys the stack via OIDC + SSM — a
+tag deploy takes minutes. One-time AWS setup, secrets, cost estimate and
+teardown: `deploy/README.md`. The dashboard's demo seed is the committed
+synthetic fixture cohort; loading the real-cohort demo subset on a machine
+with `data/` is `make fhir-load-demo`.
 
 ---
 

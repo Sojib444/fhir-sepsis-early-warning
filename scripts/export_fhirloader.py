@@ -58,8 +58,9 @@ VARIABLES = [
 STATIC = ["Age", "Gender", "Unit1", "Unit2", "ICULOS"]
 
 
-def export(config, out: Path, site: str | None = None, limit: int | None = None) -> Path:
-    cohort = read_cohort(config.path("cohort"))
+def export(config, out: Path, site: str | None = None, limit: int | None = None,
+           cohort_path: Path | None = None) -> Path:
+    cohort = read_cohort(cohort_path or config.path("cohort"))
     if site:
         cohort = cohort.filter(pl.col("site") == site)
     if limit:
@@ -104,11 +105,18 @@ def main() -> int:
         default=None,
         help="subset the cohort to the first N patient ids (demo seed)",
     )
+    parser.add_argument(
+        "--cohort",
+        type=Path,
+        default=None,
+        help="cohort parquet override (default paths.cohort from config); "
+        "used to export a demo seed from the synthetic fixtures in CI",
+    )
     args = parser.parse_args()
     config = load_config(args.config)
     out = args.out or config.path("interim") / "fhirloader.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
-    export(config, out, site=args.site, limit=args.count)
+    export(config, out, site=args.site, limit=args.count, cohort_path=args.cohort)
     print(out)
     return 0
 

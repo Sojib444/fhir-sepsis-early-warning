@@ -201,3 +201,38 @@ certificate verification.
 **Reversal.** Once PhysioNet renews its certificate, remove `--insecure` from
 the two call sites; nothing else changes. The checksum file records the
 expected content either way.
+
+---
+
+## D12 — Training runs on a data-holding machine; CI deploy consumes committed artifacts (recorded 2026-09-10)
+
+**Observation.** The tag-driven "train in CI" design is not viable: the first
+Deploy run failed instantly (PhysioNet TLS certificate expired, see D11) and
+the second run got 4 minutes into the 40k-file download before the connection
+was cut — GitHub runner IPs are rate-limited/blocked by PhysioNet after a
+burst. Training on this workstation is also impractical: the 18-configuration
+grid on 1.55M patient-hours needs a 2-4 hour budget on the 4-core i5-6500.
+
+**Decision.**
+- The pipeline (`make data train eval rigor`) runs **once on a machine that
+  holds the data** (the human's AWS machine). Its frozen artifacts are
+  committed to git: `results/models/`, `results/threshold.json`,
+  `results/metrics.json`, `results/cross_site_matrix.md`, `results/rigor.*`,
+  `results/figures/`, `docs/data_notes.md`. Patient data is never committed —
+  only model files and aggregate results tables.
+- The Deploy workflow no longer trains. It asserts the artifacts are present
+  (fails loudly with an actionable message otherwise), bakes them into the
+  `model-api` image, and deploys. A tag deploy is now minutes, not hours.
+- The demo seed served by the fhirloader image is the **committed synthetic
+  fixture cohort** (22 patients, `tests/fixtures/mini_cohort/`, corresponding
+  to no real person). No real patient data travels through CI. Loading the
+  real-cohort demo subset (`--count 200`) remains available on any machine
+  with `data/` via `make fhir-load-demo` — unchanged.
+- Site-B discipline is preserved: site B is scored exactly once (on the
+  data-holding machine, design frozen), and the deployed model is that same
+  recorded model — no second scoring path exists.
+
+**Rejected.** Retrying CI-side fetches (blocked IPs are not a code problem);
+artifacts from an S3 bucket (adds credentials the deploy decision D9 removed);
+committing the 200-patient real-cohort demo CSV (violates the no-patient-data
+rule, AGENTS.md A2.6).
