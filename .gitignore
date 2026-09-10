@@ -38,3 +38,5 @@ docs/report/*.pdf
 .fetch_data.log
 .fetch_data.log.err
 .fetch_data.pid
+train.out.log
+train.err.log
