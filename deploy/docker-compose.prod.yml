@@ -27,7 +27,7 @@ services:
 
   # --- one-shot: loads the demo seed (baked into the loader image) into HAPI ---
   load-demo:
-    image: ${LOADER_IMAGE:-ghcr.io/anomalyco/fhir-sepsis-early-warning/fhirloader:${GHCR_TAG:-latest}}
+    image: ${LOADER_IMAGE:-ghcr.io/sojib444/fhir-sepsis-early-warning/fhirloader:${GHCR_TAG:-latest}}
     container_name: sepsis-load-demo
     restart: "no"
     depends_on:
@@ -39,7 +39,7 @@ services:
 
   # --- model API ----------------------------------------------------------------
   model-api:
-    image: ${MODEL_IMAGE:-ghcr.io/anomalyco/fhir-sepsis-early-warning/model-api:${GHCR_TAG:-latest}}
+    image: ${MODEL_IMAGE:-ghcr.io/sojib444/fhir-sepsis-early-warning/model-api:${GHCR_TAG:-latest}}
     container_name: sepsis-model
     restart: unless-stopped
     expose: ["8000"]
@@ -51,7 +51,7 @@ services:
 
   # --- CDS service -------------------------------------------------------------
   cds:
-    image: ${CDS_IMAGE:-ghcr.io/anomalyco/fhir-sepsis-early-warning/cds:${GHCR_TAG:-latest}}
+    image: ${CDS_IMAGE:-ghcr.io/sojib444/fhir-sepsis-early-warning/cds:${GHCR_TAG:-latest}}
     container_name: sepsis-cds
     restart: unless-stopped
     expose: ["8990"]
@@ -71,7 +71,7 @@ services:
 
   # --- dashboard (nginx static + /api reverse proxy + rate limit) --------------
   dashboard:
-    image: ${DASHBOARD_IMAGE:-ghcr.io/anomalyco/fhir-sepsis-early-warning/dashboard:${GHCR_TAG:-latest}}
+    image: ${DASHBOARD_IMAGE:-ghcr.io/sojib444/fhir-sepsis-early-warning/dashboard:${GHCR_TAG:-latest}}
     container_name: sepsis-dashboard
     restart: unless-stopped
     expose: ["80"]

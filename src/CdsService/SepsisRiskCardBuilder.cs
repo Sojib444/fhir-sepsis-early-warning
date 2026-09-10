@@ -65,7 +65,7 @@ public sealed class SepsisRiskCardBuilder(IHapiSource hapi, IModelScorer model)
             Indicator: result.Indicator,
             Detail: detail,
             SourceLabel: "Sepsis early-warning (research prototype)",
-            SourceUrl: "https://github.com/anomalyco/fhir-sepsis-early-warning");
+            SourceUrl: "https://github.com/Sojib444/fhir-sepsis-early-warning");
     }
 
     private static string Percent(double value) => Invariant($"{value * 100:0.0}%");
@@ -78,5 +78,5 @@ public sealed class SepsisRiskCardBuilder(IHapiSource hapi, IModelScorer model)
         Indicator: "info",
         Detail: $"{Disclaimer} {detail}",
         SourceLabel: "Sepsis early-warning (research prototype)",
-        SourceUrl: "https://github.com/anomalyco/fhir-sepsis-early-warning");
+        SourceUrl: "https://github.com/Sojib444/fhir-sepsis-early-warning");
 }

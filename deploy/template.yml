@@ -30,7 +30,7 @@ Parameters:
   GithubRepo:
     Type: String
     Description: GitHub repository, owner/name, that hosts the compose project (defaults to this one).
-    Default: anomalyco/fhir-sepsis-early-warning
+    Default: Sojib444/fhir-sepsis-early-warning
   KeyName:
     Type: String
     Description: Existing key pair name for SSH. Optional; leave empty to disable SSH inbound.
