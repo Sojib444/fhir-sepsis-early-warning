@@ -1,0 +1,141 @@
+# Deploy (AGENTS-ENGINEERING.md §21-22, Phase 8).
+#
+# Tags only. Pushing `v*` runs the full pipeline on a larger runner (the model
+# file served by model-api is baked into the image, so training happens in this
+# workflow), publishes the four first-party images to GHCR, then redeploys the
+# AWS demo stack through OIDC + SSM. No long-lived credentials anywhere: GitHub
+# exchanges its OIDC token for temporary AWS credentials, and the GHCR push
+# uses the built-in GITHUB_TOKEN.
+#
+# Prerequisites (one-time, human): deploy/bootstrap.sh + the repository
+# secrets listed in deploy/README.md.
+
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  # §23: string hashing must not vary between runs.
+  PYTHONHASHSEED: "0"
+
+jobs:
+  train-and-publish:
+    name: Train, export seed, publish images
+    # The fetch (40k individual files) and the 18-config grid search dominate;
+    # both fit in a standard runner's budget, they just take a while.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install dependencies
+        run: uv sync --all-groups --frozen
+
+      # GHCR package names must be lowercase, regardless of the owner's casing.
+      - name: Compute lowercase image prefix
+        run: echo "GHCR_PREFIX=ghcr.io/$(tr '[:upper:]' '[:lower:]' <<<"${{ github.repository }}")" >> "$GITHUB_ENV"
+
+      # The canonical path from an empty data/raw/ (§18): archive fetch, cohort,
+      # designs + grid search (writes results/models/ + results/threshold.json),
+      # then the cross-site matrix and the rigor analyses that the dashboard's
+      # threshold sweep serves (results/rigor.json).
+      - name: Fetch Challenge 2019 data
+        run: bash scripts/fetch_data.sh
+
+      - name: make data
+        run: make data
+
+      - name: make train
+        run: make train
+
+      - name: make eval
+        run: make eval
+
+      - name: make rigor
+        run: make rigor
+
+      # The demo seed is baked into the fhirloader image (small subset,
+      # license-permitted; never committed to git — deploy/.gitignore).
+      - name: Export 200-patient demo seed
+        run: |
+          mkdir -p deploy/loader-assets
+          uv run python scripts/export_fhirloader.py \
+            --site A --count 200 --out deploy/loader-assets/fhirloader.csv
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Images carry the short SHA (what deploy.sh sets GHCR_TAG to) plus the
+      # semantic tag, so a machine can run either. Packages of a public
+      # repository are public by default — no visibility API call needed.
+      - name: Build images
+        run: |
+          TAG="sha-${GITHUB_SHA::7}"
+          docker build -t "$GHCR_PREFIX/model-api:$TAG"   -t "$GHCR_PREFIX/model-api:${GITHUB_REF_NAME}"   -f src/model_api/Dockerfile .
+          docker build -t "$GHCR_PREFIX/cds:$TAG"        -t "$GHCR_PREFIX/cds:${GITHUB_REF_NAME}"        -f src/CdsService/Dockerfile .
+          docker build -t "$GHCR_PREFIX/dashboard:$TAG"  -t "$GHCR_PREFIX/dashboard:${GITHUB_REF_NAME}"  src/dashboard
+          docker build -t "$GHCR_PREFIX/fhirloader:$TAG" -t "$GHCR_PREFIX/fhirloader:${GITHUB_REF_NAME}" -f src/FhirLoader/Dockerfile .
+
+      - name: Push images
+        run: |
+          TAG="sha-${GITHUB_SHA::7}"
+          docker push --all-tags "$GHCR_PREFIX/model-api"
+          docker push --all-tags "$GHCR_PREFIX/cds"
+          docker push --all-tags "$GHCR_PREFIX/dashboard"
+          docker push --all-tags "$GHCR_PREFIX/fhirloader"
+
+  aws-deploy:
+    name: Deploy to AWS
+    needs: train-and-publish
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+      BUDGET_EMAIL: ${{ secrets.BUDGET_EMAIL }}
+      HEALTH_EMAIL: ${{ secrets.HEALTH_EMAIL }}
+      GITHUB_TAG: ${{ github.ref_name }}
+      GITHUB_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # OIDC without a third-party action: exchange the runner's OIDC token for
+      # temporary AWS credentials via the STS API directly (§21).
+      - name: Assume deployment role via OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          oidc="$RUNNER_TEMP/id-token.json"
+          curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" -o "$oidc"
+          token="$(jq -r .value "$oidc")"
+          creds="$(
+            aws sts assume-role-with-web-identity \
+              --role-arn "${{ secrets.DEPLOY_ROLE_ARN }}" \
+              --role-session-name "sepsis-deploy-${GITHUB_SHA::7}" \
+              --web-identity-token "$token" \
+              --duration-seconds 3600 \
+              --output json
+          )"
+          {
+            echo "AWS_ACCESS_KEY_ID=$(jq -r .Credentials.AccessKeyId <<<"$creds")"
+            echo "AWS_SECRET_ACCESS_KEY=$(jq -r .Credentials.SecretAccessKey <<<"$creds")"
+            echo "AWS_SESSION_TOKEN=$(jq -r .Credentials.SessionToken <<<"$creds")"
+          } >> "$GITHUB_ENV"
+
+      - name: Deploy stack
+        working-directory: deploy
+        shell: bash
+        run: bash deploy.sh

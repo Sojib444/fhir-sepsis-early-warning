@@ -1,0 +1,105 @@
+# Production compose for the deployed demo (AGENTS-ENGINEERING.md §22).
+#
+# This is what runs on the EC2 instance. It is deliberately small: one HAPI
+# server, one model service, one CDS service, one dashboard. Images are pulled
+# from GHCR (public) at the tag written into /opt/sepsis/app/.env at boot.
+#
+# Env vars used (written by the deploy job / user data):
+#   GHCR_TAG   — image tag to run (e.g. a git SHA or `latest`)
+#   DOMAIN     — public domain, used by Caddy for TLS
+#   HAPI_IMAGE / MODEL_IMAGE / CDS_IMAGE / DASHBOARD_IMAGE — overridable full refs
+name: sepsis-demo
+
+services:
+  # --- HAPI FHIR server (pre-loaded with the demo cohort by the loader) -------
+  hapi:
+    image: ${HAPI_IMAGE:-hapiproject/hapi:v6.4.0@sha256:638b8df98fcfc074404520700923c07d313f62c5dcad49ca569cdb8041c7cc57}
+    container_name: sepsis-hapi
+    restart: unless-stopped
+    expose: ["8080"]
+    environment:
+      JAVA_OPTS: "-Xmx512m"          # t3.small memory budget
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/fhir/metadata"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # --- one-shot: loads the demo seed (baked into the loader image) into HAPI ---
+  load-demo:
+    image: ${LOADER_IMAGE:-ghcr.io/anomalyco/fhir-sepsis-early-warning/fhirloader:${GHCR_TAG:-latest}}
+    container_name: sepsis-load-demo
+    restart: "no"
+    depends_on:
+      hapi:
+        condition: service_healthy
+    command: ["--base", "http://hapi:8080/fhir", "--csv", "/data/fhirloader.csv", "--count", "200"]
+    logging:
+      driver: "local"              # one-shot job; no need for log files
+
+  # --- model API ----------------------------------------------------------------
+  model-api:
+    image: ${MODEL_IMAGE:-ghcr.io/anomalyco/fhir-sepsis-early-warning/model-api:${GHCR_TAG:-latest}}
+    container_name: sepsis-model
+    restart: unless-stopped
+    expose: ["8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,u; u.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # --- CDS service -------------------------------------------------------------
+  cds:
+    image: ${CDS_IMAGE:-ghcr.io/anomalyco/fhir-sepsis-early-warning/cds:${GHCR_TAG:-latest}}
+    container_name: sepsis-cds
+    restart: unless-stopped
+    expose: ["8990"]
+    environment:
+      HAPI_BASE: http://hapi:8080/fhir
+      MODEL_BASE: http://model-api:8000
+    depends_on:
+      hapi:
+        condition: service_healthy
+      model-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8990/cds-services"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # --- dashboard (nginx static + /api reverse proxy + rate limit) --------------
+  dashboard:
+    image: ${DASHBOARD_IMAGE:-ghcr.io/anomalyco/fhir-sepsis-early-warning/dashboard:${GHCR_TAG:-latest}}
+    container_name: sepsis-dashboard
+    restart: unless-stopped
+    expose: ["80"]
+    depends_on:
+      cds:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # --- Caddy TLS edge ----------------------------------------------------------
+  caddy:
+    image: caddy:2.9-alpine@sha256:b4e3952384eb9524a887633ce65c752dd7c71314d2d2acf98cd5c715aaa534f0
+    container_name: sepsis-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      dashboard:
+        condition: service_healthy
+
+volumes:
+  caddy-data:

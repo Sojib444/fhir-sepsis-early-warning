@@ -5,13 +5,12 @@
 #   2. Fast tests    — tiers 1-3, no real data, no Docker; must stay under 2 min
 #   3. .NET tests    — FhirLoader + CdsService (xUnit), SDK installed via the
 #                      official script so no unpinned action is needed
-#   4. Build images  — CdsService + dashboard (each compiles its code). The
-#                      model-api image needs trained artifacts from `make train`
-#                      and is built by the publish/deploy stages (Phase 8).
-# Not yet present:
-#   5. Integration   — tier 4, docker compose (Phase 6)
-#   6. Publish       — GHCR, tags only        (Phase 8)
-#   7. Deploy        — AWS via OIDC, tags only (§22, Phase 8)
+#   4. Build images  — CdsService + dashboard + FhirLoader (each compiles its
+#                      code). The model-api image needs trained artifacts from
+#                      `make train` and is built by the deploy workflow, which
+#                      runs the full pipeline before publishing.
+#   6. Publish       — GHCR, tags only        (.github/workflows/deploy.yml)
+#   7. Deploy        — AWS via OIDC, tags only (.github/workflows/deploy.yml)
 #
 # Action versions are pinned by commit SHA, not by floating tag (§21).
 
@@ -105,7 +104,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: shellcheck
-        run: shellcheck scripts/*.sh
+        run: shellcheck scripts/*.sh deploy/*.sh
 
       # §18: re-running the fetch must not re-download. With data/raw/ empty
       # there is nothing to skip, so we only assert it starts up and reports
@@ -149,3 +148,11 @@ jobs:
 
       - name: Build dashboard image
         run: docker build -t sepsis-dashboard src/dashboard
+
+      - name: Build FhirLoader image
+        # The demo seed CSV is baked in; CI builds with a placeholder so the
+        # compile check does not depend on the (never-committed) real cohort.
+        run: |
+          mkdir -p deploy/loader-assets
+          printf 'patient_id,site\n' > deploy/loader-assets/fhirloader.csv
+          docker build -t sepsis-fhirloader -f src/FhirLoader/Dockerfile .

@@ -1,0 +1,32 @@
+# Caddy TLS edge for the sepsis demo (§22). Two nested services: the public
+# app (https://DOMAIN) and a health endpoint. `DOMAIN` is exported by the
+# expose: [\"80\",\"443\"] environment / compose .env file.
+
+{$DOMAIN} {
+  encode gzip
+  # Research prototype — the header is set by the dashboard itself, but assert
+  # it at the edge too so no configuration can forget it.
+  header X-Content-Type-Options nosniff
+  header Referrer-Policy no-referrer
+
+  # Everything under /api goes to the dashboard nginx, which rate-limits and
+  # reverse-proxies to the CDS service. The dashboard is the only public app.
+  handle /api/* {
+    reverse_proxy dashboard:80
+  }
+
+  # Health endpoint for the compose healthcheck / CloudWatch alarm.
+  handle /healthz {
+    respond "ok"
+  }
+
+  # Dashboard SPA (nginx serves / → index.html).
+  handle {
+    reverse_proxy dashboard:80
+  }
+}
+
+# Redirect plain HTTP → HTTPS for the domain.
+http://{$DOMAIN} {
+  redir https://{$DOMAIN}{uri}
+}

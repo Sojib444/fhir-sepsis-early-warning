@@ -1,0 +1,211 @@
+# CloudFormation template for the sepsis demo stack on AWS (AGENTS-ENGINEERING.md §22).
+#
+# Single t3.small x86_64 instance (Amazon Linux 2023) running Docker Compose
+# behind the dashboard nginx (public edge) + Caddy (TLS). Images are pulled
+# from GHCR, which is public, so the instance needs no registry credentials and
+# the GitHub deploy role needs only CloudFormation + SSM. x86_64 rather than
+# Graviton because the publish job builds native amd64 images on GitHub's
+# standard runners; emulated arm64 builds would be slow and fragile.
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Sepsis early-warning research demo — NOT for clinical use. One EC2 instance
+  running HAPI + model API + CDS service + dashboard.
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: Public domain the demo is served under (Caddy obtains a TLS cert).
+  BudgetEmail:
+    Type: String
+    Description: Email address that receives the cost-budget alarm.
+    Default: ""
+  HealthEmail:
+    Type: String
+    Default: ""
+    Description: Optional email address for CloudWatch alarm when the instance stops being healthy.
+  ImageTag:
+    Type: String
+    Description: GHCR tag of the demo images to run (set at deploy time).
+    Default: latest
+  GithubRepo:
+    Type: String
+    Description: GitHub repository, owner/name, that hosts the compose project (defaults to this one).
+    Default: anomalyco/fhir-sepsis-early-warning
+  KeyName:
+    Type: String
+    Description: Existing key pair name for SSH. Optional; leave empty to disable SSH inbound.
+    Default: ""
+
+Conditions:
+  HasKey: !Not [!Equals [!Ref KeyName, ""]]
+  HasHealthEmail: !Not [!Equals [!Ref HealthEmail, ""]]
+  HasBudgetEmail: !Not [!Equals [!Ref BudgetEmail, ""]]
+
+Resources:
+  # HTTPS and HTTP from the world; SSH only if you pass a KeyName.
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Sepsis demo — web inbound, SSH optional
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - !If [HasKey,
+              { IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: 0.0.0.0/0 },
+              !Ref "AWS::NoValue"]
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  # Instance role: SSM core only. The stack itself is deployed and updated by
+  # the GitHub Actions OIDC role, not by the instance.
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  # t3.small, x86_64, AL2023. The AMI is resolved at deploy time from the SSM
+  # public parameter so it always tracks the latest patched AL2023 image.
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: resolve:ssm::/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+      KeyName: !If [HasKey, !Ref KeyName, !Ref "AWS::NoValue"]
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds: [!Ref InstanceSecurityGroup]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 20, VolumeType: gp3 }
+      Tags:
+        - { Key: Name, Value: sepsis-demo }
+      UserData: !Base64
+        Fn::Sub: |
+          #!/bin/bash
+          set -euxo pipefail
+          exec >/var/log/sepsis-bootstrap.log 2>&1
+
+          # Fetch the repository at the given tag so the compose project on disk
+          # is exactly what the tag shipped (reproducibility, AGENTS-ENGINEERING.md §23).
+          rm -rf /opt/sepsis
+          mkdir -p /opt/sepsis
+          git clone --depth 1 --branch ${ImageTag} \
+            https://github.com/${GithubRepo}.git /opt/sepsis/app
+
+          # Docker CE + Compose plugin on AL2023.
+          dnf -y install docker
+          systemctl enable --now docker
+          docker compose version
+
+          cd /opt/sepsis/app
+          # .env is written by the deploy job (SSM) on every release; provide one
+          # here too so a fresh instance can boot without a first deploy round.
+          cat > .env <<EOF
+          GHCR_TAG=${ImageTag}
+          DOMAIN=${DomainName}
+          EOF
+          docker compose -f deploy/docker-compose.prod.yml --env-file .env pull
+          docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d
+
+  # Mandatory cost control (§22): a $20/month soft ceiling. Alarms go to the
+  # budget email, set before first deploy (skip the budget entirely if no email
+  # is configured).
+  Budget:
+    Type: AWS::Budgets::Budget
+    Condition: HasBudgetEmail
+    Properties:
+      Budget:
+        BudgetName: !Sub "sepsis-demo-budget"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: 20
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+
+  # Health alarm: the dashboard nginx has a /healthz; the alarm fires if the
+  # instance's EC2 status checks fail for 15 minutes. Emails only if
+  # HealthEmail is configured (the topic itself is always created so the
+  # Condition on the alarm stays simple).
+  HealthTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "sepsis-demo-health-${DomainName}"
+
+  HealthTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref HealthTopic]
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowCloudWatchAlarmsToPublish
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref HealthTopic
+
+  HealthSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasHealthEmail
+    Properties:
+      TopicArn: !Ref HealthTopic
+      Protocol: email
+      Endpoint: !Ref HealthEmail
+
+  HealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "sepsis-demo-health-${DomainName}"
+      AlarmDescription: Demo instance status checks failing
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref Instance
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions: [!Ref HealthTopic]
+
+  # Record the auto-assigned IP so anyone can find it. DNS is out of scope of
+  # this stack — point your own domain or an A record at the PublicIp output.
+
+Outputs:
+  InstanceId:
+    Description: EC2 instance id (used by the deploy job for SSM commands).
+    Value: !Ref Instance
+  PublicIp:
+    Description: Public IP of the demo instance.
+    Value: !GetAtt Instance.PublicIp
+  DashboardUrl:
+    Description: HTTPS URL of the dashboard.
+    Value: !Sub "https://${DomainName}"

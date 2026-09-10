@@ -137,3 +137,21 @@ Do not maintain two copies of the spec — they will drift.
 **Strictness that is preserved from §2.2.** No patient appears in both `b_train` and `b_eval`. `b_eval` is never trained on, never used for tuning, never used for imputation/scaling/calibration statistics, and never used for design iteration. If a `b_eval` score looks bad it is reported, never fixed by touching `b_eval`.
 
 This is a working definition recorded here so recent commits do not silently redefine `training_setB`. No other §3 decision is changed.
+
+---
+
+## D9 — Demo deployment design (recorded 2026-09-10)
+
+**Context.** §21-22 ask for GHCR publish + an automatic AWS deploy of the demo stack. The AWS account runs only the demo; all heavy training happens in CI or on the human's AWS machine.
+
+**Decisions.**
+- **Deploy trigger: `v*` tags only.** A tag push runs the full pipeline (fetch → data → train → eval → rigor), publishes four images (`model-api`, `cds`, `dashboard`, `fhirloader`) to GHCR tagged `sha-<short-SHA>` plus the tag name, then redeploys the stack via CloudFormation + SSM Run Command. `workflow_dispatch` allows manual redeploys.
+- **Images: public GHCR packages.** The repository is MIT and the data licence permits a demo subset, so no registry credentials are needed on the instance and the deploy role needs only CloudFormation + SSM. GHCR packages of a public repository are public by default.
+- **No long-lived keys.** GitHub exchanges its OIDC token for temporary AWS credentials (`sts assume-role-with-web-identity`, audience `sts.amazonaws.com`), using `curl` + the `aws` CLI rather than a third-party action. One-time role/OIDC-provider setup is `deploy/bootstrap.sh`.
+- **Instance: `t3.small` x86_64, not Graviton.** GitHub's standard runners build native amd64 images; emulated arm64 builds are slow and fragile. The images are pulled at deploy time.
+- **Model + seed are baked into images.** The model-api image contains the trained model and threshold; the fhirloader image contains a 200-patient demo CSV exported by `scripts/export_fhirloader.py --site A --count 200`. Neither is committed to git (deploy/.gitignore); the CSV lives only in the image, which the Challenge data terms permit for a demo subset.
+- **rigor.json placeholder committed.** `results/rigor.json` (`{"alert_burden": []}`) is committed so the CDS image builds and the dashboard sweep degrades gracefully before `make rigor` has run; `make rigor` overwrites it.
+- **Instance management is SSM-only.** The instance role is `AmazonSSMManagedInstanceCore`; no SSH key is required (an optional keypair opens port 22 for emergencies). Deploys run `git fetch --depth 1 origin tag <tag>` + `docker compose up -d --pull always` on the instance.
+- **Cost controls.** $20/month budget alarm (email at 80%), CloudWatch `StatusCheckFailed` alarm on the instance to an SNS topic, optional email subscription.
+
+**Not decided by the agent.** The `GithubRepo` parameter default in `deploy/template.yml` must be confirmed by the human (it is the repository's `owner/name` as used in git clone URLs), and the repository secrets in deploy/README.md must be set by the human.
