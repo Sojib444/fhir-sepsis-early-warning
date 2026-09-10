@@ -30,10 +30,12 @@ to **GHCR as public packages**; the EC2 instance needs no registry credentials.
 
 - `template.yml` — CloudFormation: security group, SSM role, one instance whose
   user-data boots `/opt/sepsis/app` from the git tag and starts `docker compose`.
-  Also a $20/month budget alarm and a CloudWatch health alarm.
+  Also a $20/month budget alarm and a CloudWatch health alarm (both skipped when
+  their email secrets are unset).
 - `docker-compose.prod.yml` — the instance's compose (every image carries its
   own artifacts; only `GHCR_TAG` and `DOMAIN` come from `.env`).
-- `Caddyfile` — TLS edge, healthz, API reverse proxy.
+- `Caddyfile` — TLS edge (domain mode), healthz, API reverse proxy.
+- `Caddyfile.http` — plain-HTTP edge on `:80` (no domain configured yet).
 - `deploy.sh` — tag deploy via CloudFormation + SSM Run Command (run by CI).
 - `bootstrap.sh` — one-time AWS IAM OIDC setup (run by a human once).
 
@@ -52,12 +54,28 @@ Then store GitHub Actions secrets (never in the repo):
 | `AWS_ACCOUNT_ID` | account id from bootstrap output |
 | `AWS_REGION` | e.g. `us-east-1` |
 | `DEPLOY_ROLE_ARN` | role ARN printed by bootstrap |
-| `DEPLOY_DOMAIN` | public domain, DNS A record → the instance Elastic IP |
-| `BUDGET_EMAIL` | for the `$20/month` alarm |
+| `DEPLOY_DOMAIN` | **optional** — a public domain (DNS A record → the instance IP) gives the HTTPS path; leave unset to serve plain HTTP on the instance IP (see below) |
+| `BUDGET_EMAIL` | optional, for the `$20/month` alarm |
 | `HEALTH_EMAIL` | optional, for the instance-health alarm |
 
 No GHCR token is needed — the built-in `GITHUB_TOKEN` pushes the images
 (`packages: write`).
+
+## Without a domain (HTTP on the instance IP)
+
+If `DEPLOY_DOMAIN` is unset, the stack serves the dashboard over plain HTTP on
+the instance's public IP:
+
+- `http://<public-ip>/` — dashboard
+- `http://<public-ip>/healthz` — liveness (this is what the deploy step polls)
+- `http://<public-ip>/fhir/` — HAPI is not exposed; only the dashboard's `/api`
+  proxy reaches the services
+
+Browsers will flag the site as not secure; that is the honest signal that this
+is the unpolished path (decision D10 in `docs/decisions.md`). Traffic is
+unencrypted end to end. When you later point a domain at the IP and set
+`DEPLOY_DOMAIN`, the next tag deploy switches to the TLS `Caddyfile`
+automatically — no stack changes needed.
 
 ## Deploying
 

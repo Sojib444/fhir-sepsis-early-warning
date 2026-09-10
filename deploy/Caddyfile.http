@@ -1,0 +1,22 @@
+# Plain-HTTP fallback for the sepsis demo, used when no domain is configured
+# (deploy/decisions: the human opted for HTTP-on-IP until a domain exists).
+# Selected by CADDYFILE=./Caddyfile.http in the instance's .env. Same routes as
+# Caddyfile, minus TLS: browsers will show a not-secure warning, which is the
+# honest signal that this is the unpolished path.
+:80 {
+  encode gzip
+  header X-Content-Type-Options nosniff
+  header Referrer-Policy no-referrer
+
+  handle /api/* {
+    reverse_proxy dashboard:80
+  }
+
+  handle /healthz {
+    respond "ok"
+  }
+
+  handle {
+    reverse_proxy dashboard:80
+  }
+}

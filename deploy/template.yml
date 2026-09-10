@@ -14,7 +14,8 @@ Description: >
 Parameters:
   DomainName:
     Type: String
-    Description: Public domain the demo is served under (Caddy obtains a TLS cert).
+    Description: Public domain the demo is served under (Caddy obtains a TLS cert). Leave empty to serve plain HTTP on the instance IP.
+    Default: ""
   BudgetEmail:
     Type: String
     Description: Email address that receives the cost-budget alarm.
@@ -120,8 +121,13 @@ Resources:
           # here too so a fresh instance can boot without a first deploy round.
           cat > .env <<EOF
           GHCR_TAG=${ImageTag}
-          DOMAIN=${DomainName}
           EOF
+          if [ -n "${DomainName}" ]; then
+            printf 'DOMAIN=%s\nCADDYFILE=./Caddyfile\n' '${DomainName}' >> .env
+          else
+            # No domain yet: serve plain HTTP on the instance IP (decision D10).
+            printf 'CADDYFILE=./Caddyfile.http\n' >> .env
+          fi
           docker compose -f deploy/docker-compose.prod.yml --env-file .env pull
           docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d
 

@@ -93,9 +93,12 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      DOMAIN: ${DOMAIN}
+      DOMAIN: ${DOMAIN:-}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Domain mode serves the TLS Caddyfile; HTTP-on-IP mode swaps in
+      # Caddyfile.http via CADDYFILE in the instance's .env (no domain yet).
+      # The default is the HTTP file so a hand-run without .env still works.
+      - ${CADDYFILE:-./Caddyfile.http}:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
     depends_on:
       dashboard:

@@ -21,7 +21,9 @@ set -euo pipefail
 
 REGION="${AWS_REGION:?AWS_REGION required}"
 STACK="${DEPLOY_STACK_NAME:-sepsis-demo}"
-DOMAIN="${DEPLOY_DOMAIN:?DEPLOY_DOMAIN required}"
+# Domain is optional since decision D10: with no DEPLOY_DOMAIN the demo is
+# served plain-HTTP on the instance IP (CADDYFILE=./Caddyfile.http).
+DOMAIN="${DEPLOY_DOMAIN:-}"
 BUDGET_EMAIL="${BUDGET_EMAIL:-}"
 HEALTH_EMAIL="${HEALTH_EMAIL:-}"
 TAG="${GITHUB_TAG:?GITHUB_TAG required}"
@@ -54,6 +56,17 @@ instance_id="$(
 [ -n "${instance_id}" ] || { echo "No EC2 instance found in stack $STACK" >&2; exit 1; }
 echo ">> Instance: ${instance_id}"
 
+# The post-deploy health check needs the demo's URL: https://DOMAIN in domain
+# mode, http://<public-ip> in HTTP-on-IP mode.
+if [ -n "$DOMAIN" ]; then
+  BASE_URL="https://$DOMAIN"
+else
+  BASE_URL="http://$(aws ec2 describe-instances --region "$REGION" \
+    --instance-ids "$instance_id" \
+    --query 'Reservations[].Instances[].PublicIpAddress' --output text)"
+  echo ">> No domain configured — serving plain HTTP on $BASE_URL (decision D10)"
+fi
+
 # 3. Wait for SSM to be able to reach the instance (up to ~6 minutes).
 echo ">> Waiting for SSM agent on ${instance_id}..."
 deadline=$(( $(date +%s) + 360 ))
@@ -80,10 +93,12 @@ cat > "$ssm_params" <<JSON
     "sudo git checkout -f ${TAG}",
     "printf 'GHCR_TAG=%s\n' '${IMAGE_TAG}' | sudo tee .env >/dev/null",
     "printf 'DOMAIN=%s\n' '${DOMAIN}' | sudo tee -a .env >/dev/null",
+    "printf 'CADDYFILE=./Caddyfile\n' | sudo tee -a .env >/dev/null",
+    "if grep -q '^DOMAIN=$' .env; then sudo sed -i 's|^CADDYFILE=.*|CADDYFILE=./Caddyfile.http|' .env; fi",
     "sudo docker compose -f deploy/docker-compose.prod.yml --env-file .env pull --quiet",
     "sudo docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --remove-orphans",
     "sudo docker image prune -f >/dev/null 2>&1 || true",
-    "curl -fsS --retry 20 --retry-delay 3 --retry-all-errors https://${DOMAIN}/healthz >/dev/null"
+    "curl -fsS --retry 20 --retry-delay 3 --retry-all-errors ${BASE_URL}/healthz >/dev/null"
   ]
 }
 JSON

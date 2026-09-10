@@ -155,3 +155,24 @@ This is a working definition recorded here so recent commits do not silently red
 - **Cost controls.** $20/month budget alarm (email at 80%), CloudWatch `StatusCheckFailed` alarm on the instance to an SNS topic, optional email subscription.
 
 **Not decided by the agent.** The `GithubRepo` parameter default in `deploy/template.yml` must be confirmed by the human (it is the repository's `owner/name` as used in git clone URLs), and the repository secrets in deploy/README.md must be set by the human.
+
+---
+
+## D10 — Demo served over plain HTTP until a domain exists (recorded 2026-09-10)
+
+**Decision.** The deployed demo runs on the instance's public IP over plain HTTP
+(`deploy/Caddyfile.http`) until the human points a domain at the stack and sets
+the `DEPLOY_DOMAIN` secret. The TLS path (`deploy/Caddyfile`, Let's Encrypt via
+Caddy) is the default and takes over on the next tag deploy once a domain is
+configured — no stack changes are needed to switch.
+
+**Reasoning.** The human has no domain yet and chose not to block the demo on
+one (recorded 2026-09-10). Browsers show the not-secure warning on the HTTP
+path, which states the prototype status honestly rather than hiding it.
+
+**Requirements.**
+- `DEPLOY_DOMAIN`, `BUDGET_EMAIL` and `HEALTH_EMAIL` are now optional stack
+  inputs; empty values skip the TLS site, the budget alarm and the health-email
+  subscription respectively.
+- HTTP mode carries no encryption: acceptable only for the research demo of
+  de-identified Challenge data, never for real clinical traffic.
