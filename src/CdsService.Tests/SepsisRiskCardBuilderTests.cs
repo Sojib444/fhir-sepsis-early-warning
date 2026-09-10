@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using CdsService;
 
@@ -36,8 +37,34 @@ public class SepsisRiskCardBuilderTests
         Assert.Equal("warning", card.Indicator);
         Assert.Contains("operating threshold (14.0%)", card.Detail);
         Assert.Contains("Research prototype", card.Detail);
-        Assert.Contains($"Top contributing factors: Lactate_last_24 ({0.05:+0.00;-0.00;0.00})", card.Detail);
+        Assert.Contains("Top contributing factors: Lactate_last_24 (+0.05)", card.Detail);
         Assert.Contains("HR_max_6", card.Detail);
+    }
+
+    [Fact]
+    public async Task Card_numbers_are_culture_invariant()
+    {
+        // .NET renders "P1" as "71.0 %" on Linux (ICU) and "71.0%" on Windows
+        // (NLS), and a comma-decimal host would render "0,05". The card must
+        // read identically everywhere, so force a culture with both traits.
+        var original = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("fr-FR");
+        try
+        {
+            var builder = new SepsisRiskCardBuilder(
+                new FakeHapiSource(Snapshot),
+                new FakeModelScorer(features: Features, result: AboveThreshold));
+
+            CdsCard card = await builder.BuildAsync("p1", prefetchBundleJson: null);
+
+            Assert.StartsWith("Sepsis risk 71.0%", card.Summary);
+            Assert.Contains("operating threshold (14.0%)", card.Detail);
+            Assert.Contains("Top contributing factors: Lactate_last_24 (+0.05)", card.Detail);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
     }
 
     [Fact]

@@ -49,11 +49,15 @@ public sealed class SepsisRiskCardBuilder(IHapiSource hapi, IModelScorer model)
 
         string topFactors = string.Join(
             ", ",
-            result.TopShap.Take(3).Select(t => $"{t.Feature} ({t.Value:+0.00;-0.00;0.00})"));
+            result.TopShap.Take(3).Select(t => Invariant($"{t.Feature} ({t.Value:+0.00;-0.00;0.00})")));
 
-        string summary = $"Sepsis risk {result.Risk:P1} (operating threshold {result.Threshold:P1})";
+        // Percentages are rendered x100 with a custom format rather than "P",
+        // which ICU-based runtimes (Linux) render as "71.0 %" and NLS runtimes
+        // (Windows) as "71.0%" — a space that broke the CI assertions. Every
+        // number is invariant so the card reads the same on any host culture.
+        string summary = Invariant($"Sepsis risk {result.Risk * 100:0.0}% (operating threshold {result.Threshold * 100:0.0}%)");
         string relation = result.Risk >= result.Threshold ? "above" : "below";
-        string detail = $"{Disclaimer} Risk is {relation} the operating threshold ({result.Threshold:P1}). " +
+        string detail = $"{Disclaimer} Risk is {relation} the operating threshold ({Percent(result.Threshold)}). " +
                         $"Top contributing factors: {topFactors}.";
         return new CdsCard(
             Uuid: $"sepsis-risk-{Guid.NewGuid():N}",
@@ -63,6 +67,10 @@ public sealed class SepsisRiskCardBuilder(IHapiSource hapi, IModelScorer model)
             SourceLabel: "Sepsis early-warning (research prototype)",
             SourceUrl: "https://github.com/anomalyco/fhir-sepsis-early-warning");
     }
+
+    private static string Percent(double value) => Invariant($"{value * 100:0.0}%");
+
+    private static string Invariant(FormattableString text) => FormattableString.Invariant(text);
 
     private static CdsCard InfoOnly(string detail) => new(
         Uuid: $"sepsis-risk-{Guid.NewGuid():N}",
