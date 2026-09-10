@@ -176,3 +176,28 @@ path, which states the prototype status honestly rather than hiding it.
   subscription respectively.
 - HTTP mode carries no encryption: acceptable only for the research demo of
   de-identified Challenge data, never for real clinical traffic.
+
+---
+
+## D11 — Fetch tolerates PhysioNet's expired certificate; checksums carry integrity (recorded 2026-09-10)
+
+**Observation.** On 2026-09-10 PhysioNet's serving certificate is expired
+(schannel reports `SEC_E_CERT_EXPIRED` for physionet.org; the first Deploy run
+failed in seconds at the directory listing for the same reason). This blocks
+every automated fetch, on runners and locally alike.
+
+**Decision.** `scripts/fetch_data.sh` passes `--insecure` to the two
+physionet.org curl call sites (listing + file downloads). TLS verification of
+the transport is no longer the integrity guarantee for these calls.
+
+**Why this is safe.** Integrity is guaranteed by content, not transport:
+`data/CHECKSUMS.sha256` — committed to git before any download, containing the
+aggregate per-site digest and the scorer digest — is verified by `make data`
+(`scripts/verify_checksums.sh`) on every run, and any mismatch refuses to
+proceed. A man-in-the-middle or corrupted origin therefore cannot enter the
+cohort. The scorer is fetched from raw.githubusercontent.com and keeps normal
+certificate verification.
+
+**Reversal.** Once PhysioNet renews its certificate, remove `--insecure` from
+the two call sites; nothing else changes. The checksum file records the
+expected content either way.

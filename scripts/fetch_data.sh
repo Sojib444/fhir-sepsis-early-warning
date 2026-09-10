@@ -122,11 +122,20 @@ fetch_scorer() {
   log "scorer written to src/sepsis/vendor/evaluate_sepsis_score.py"
 }
 
+# ------------------------------------------------------------- TLS ---------
+# PhysioNet's serving certificate has been observed expired (2026-09-10,
+# schannel SEC_E_CERT_EXPIRED; decision D11). The fetch proceeds with TLS
+# verification disabled for physionet.org calls because integrity is NOT
+# trusted to the transport: data/CHECKSUMS.sha256 (committed before any
+# download) is verified by `make data` against the aggregate per-site digest,
+# so any tampered or corrupted response is refused downstream. raw.github
+# (the scorer) keeps normal verification; its certificate is healthy.
+
 # ------------------------------------------------------------- listings -----
 # PhysioNet serves a plain directory index for each set. Parse the hrefs.
 list_patients() {
   local set_name="$1"
-  curl -fsSL --retry "$RETRIES" --retry-delay 2 --max-time 900 "$BASE_URL/$set_name/" \
+  curl --insecure -fsSL --retry "$RETRIES" --retry-delay 2 --max-time 900 "$BASE_URL/$set_name/" \
     | grep -oE 'href="p[0-9]+\.psv"' \
     | sed -E 's/href="(.*)"/\1/' \
     | sort -u
@@ -206,7 +215,7 @@ fetch_set() {
       # concurrency and are retried, so they are dropped; every other message
       # is kept, because a silent write failure is exactly the bug this
       # comment exists to prevent recurring.
-      ( cd "$dir" && curl -sS --parallel --parallel-max "$PARALLEL" \
+      ( cd "$dir" && curl --insecure -sS --parallel --parallel-max "$PARALLEL" \
            -C - --retry "$RETRIES" --retry-delay 3 --connect-timeout 30 --max-time 300 \
            --config "$chunk_cfg" ) 2>&1 | grep -v 'curl: (28)' || true
 
