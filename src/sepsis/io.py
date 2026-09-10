@@ -12,6 +12,7 @@ concatenates — no more than that.
 from __future__ import annotations
 
 import io as _io
+import multiprocessing
 import os
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -142,9 +143,13 @@ def load_site(
 ) -> pl.DataFrame:
     """Parse every patient file for one site, in parallel.
 
-    On Windows and macOS, worker processes are *spawned*, which re-imports the
-    calling module. A caller that runs this at import time must therefore guard
-    its entry point with `if __name__ == "__main__":`, or pass `max_workers=1`.
+    Workers are always *spawned*, never forked: forking a process that has
+    already imported polars inherits its Rayon thread state and can deadlock a
+    worker before it does any work — observed as an indefinite hang of
+    `test_parallel_and_serial_parsing_agree` on the Linux CI runner, where the
+    default start method is fork. Spawn re-imports the calling module, so a
+    caller that runs this at import time must guard its entry point with
+    `if __name__ == "__main__":`, or pass `max_workers=1`.
     """
     files = list_patient_files(site_dir)
     batches = [(batch, site) for batch in _batched(files, _BATCH_SIZE)]
@@ -153,14 +158,17 @@ def load_site(
         payloads = [_parse_batch(b) for b in batches]
     else:
         try:
-            with ProcessPoolExecutor(max_workers=max_workers) as pool:
+            with ProcessPoolExecutor(
+                max_workers=max_workers,
+                mp_context=multiprocessing.get_context("spawn"),
+            ) as pool:
                 payloads = list(pool.map(_parse_batch, batches))
         except BrokenProcessPool as error:
             # Almost always the missing __main__ guard above. The raw error is
             # a page of multiprocessing internals that says nothing useful.
             raise RuntimeError(
-                "the worker pool died while parsing. On Windows and macOS this "
-                'is usually a caller without an `if __name__ == "__main__":` '
+                "the worker pool died while parsing. Workers are spawned, so "
+                'this is usually a caller without an `if __name__ == "__main__":` '
                 "guard, because spawning a worker re-imports the calling "
                 "module. Add the guard, or call load_site(..., max_workers=1)."
             ) from error

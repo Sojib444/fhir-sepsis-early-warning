@@ -32,6 +32,7 @@ jobs:
     # The fetch (40k individual files) and the 18-config grid search dominate;
     # both fit in a standard runner's budget, they just take a while.
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -101,6 +102,7 @@ jobs:
     name: Deploy to AWS
     needs: train-and-publish
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
