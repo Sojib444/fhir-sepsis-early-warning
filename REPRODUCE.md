@@ -3,8 +3,8 @@
 Exact steps from a clean machine. Grows one section per phase; a phase that
 has not shipped has nothing to reproduce and says so.
 
-**Total time from a clean clone to the current end state: about 3.5 hours,
-almost all of it downloading data.** Everything after the download is minutes.
+**Total time from a clean clone to every reported number: about 4 hours — about
+3 of it downloading data, under an hour of compute after.**
 
 ---
 
@@ -103,8 +103,57 @@ committed copy apart from its provenance block, whose `timestamp_utc` and
 
 ## 5. Model, evaluation, services
 
-Not yet built. `make train`, `make eval` and `make up` exit non-zero with the
-phase that will implement them.
+```bash
+make train     # designs, 18-config grid, LightGBM models, threshold.json
+make eval      # cross-site matrix, feature drift, per-site SHAP → results/
+make rigor     # calibration, subgroups, alert burden, transfer curve → results/
+```
+
+What each produces:
+
+| Command | Writes |
+|---|---|
+| `make train` | `results/hyperparameter_search.json` (the grid + winner), `results/models/{window_a,window_b,window_ab,baseline*}.*`, `results/threshold.json` (D5), `results/metrics.json` (site-A cells) |
+| `make eval` | `results/cross_site_matrix.md` (the 4 cells + drift + SHAP evidence), `results/feature_drift.json`, `results/shap_importance.json`, `results/figures/*` |
+| `make rigor` | `results/rigor.{md,json}`, `results/figures/{transfer_curve,calibration,alert_burden,shap_*}.png` |
+
+*Expected runtimes (4 threads, laptop-class): `make train` tens of minutes — the
+18-configuration grid at 600 trees each dominates; `make eval` minutes; `make
+rigor` minutes. `make eval` reuses the designs from `make train` and refuses to
+re-score site B once its fingerprint is recorded — see the site-B discipline in
+`docs/decisions.md`.*
+
+The site-B cells of the matrix are computed **once**, after all design choices
+are frozen; `results/cross_site_matrix.md` says so explicitly, and re-running
+with the same designs reuses the recorded fingerprint rather than re-scoring.
+
+---
+
+## 6. The services
+
+```bash
+make up               # builds + starts: hapi :8080, model-api :8000, cds :8990, dashboard :4200
+make fhir-load-demo   # loads 200 patients into HAPI via the .NET loader
+./scripts/cds_demo.sh p000001    # discovery document + one CDS Hooks card
+```
+
+- `make up` needs the trained artifacts (`results/models/`,
+  `results/threshold.json`) from §5 — they are baked into the model-api image.
+- The dashboard is at <http://localhost:4200>; its `/api` proxy and the CDS
+  service serve the same numbers the offline pipeline computed.
+- Tier-4 integration tests (marked `integration`, need the stack running)
+  exercise HAPI → CDS service → model service end to end.
+
+*Expected runtime: image builds 3–10 minutes the first time, seconds after.*
+
+---
+
+## 7. The deployed demo
+
+`deploy/README.md` covers one-time AWS bootstrap, the `v*`-tag deploy path, the
+demo seed subset, cost estimate and teardown. The workflow runs the identical
+pipeline of §4–5 on the tag's commit before publishing images, so the served
+model is the pipeline's own output.
 
 ---
 

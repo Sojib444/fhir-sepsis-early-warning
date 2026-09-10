@@ -1,0 +1,226 @@
+% Sepsis early warning on FHIR — Phase 8 report (AGENTS.md §14).
+%
+% Research prototype, not for clinical use. Every `TODO(human)` marker marks a
+% place where interpretation or author judgement is required (AGENTS.md §14.2);
+% the agent writing this skeleton must not fill them in.
+%
+% Compiles with plain pdflatex: no class files beyond the standard distribution.
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage[numbers]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,citecolor=blue!60!black,urlcolor=blue!60!black]{hyperref}
+
+% TODO(human) marker: renders visibly so an unresolved marker cannot hide.
+\newcommand{\todohuman}[1]{\textcolor{red}{\textbf{[TODO(human): #1]}}}
+% Placeholders for pipeline-produced numbers; each one must be replaced from
+% the provenance-marked artifact named in the comment, never invented.
+\newcommand{\pending}[1]{\textcolor{red}{\textbf{[pending: #1]}}}
+
+\title{Cross-site transfer of a sepsis early-warning model:\\
+from PhysioNet/CinC Challenge 2019 to HL7~FHIR}
+\author{%
+  \todohuman{author list, order, affiliations}%
+}
+\date{\todohuman{date}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\todohuman{structured abstract after Results exist: background, methods with
+the one exclusion and the frozen design choices, results (the four matrix
+cells), conclusion framed as transfer measurement, not clinical performance.}
+Research prototype; not validated for clinical use.
+\end{abstract}
+
+\section{Introduction}
+Sepsis is a leading cause of hospital mortality, and scoring tools that work at
+one site often lose performance when moved to another. This study measures
+exactly that loss on the PhysioNet/CinC Challenge 2019 cohort
+\citep{reyna2019}: a model developed on site~A (Beth Israel Deaconess) is
+scored on site~B (Emory), and the drop is reported with the official Challenge
+utility score \citep{reyna2019} alongside AUROC and AUPRC.
+
+\todohuman{1--2 paragraphs of clinical motivation and prior work in ICU early
+warning; the agent must not draft the clinical framing. End with the
+contribution sentence: an honest 4-cell cross-site validation matrix, a
+transfer curve quantifying how much target-site data recovers performance, and
+a standards-based serving layer (HL7 FHIR R4 \citep{fhirr4}, CDS Hooks
+\citep{cdshooks}) so the pipeline is reproducible end to end.}
+
+\section{Data}
+The Challenge 2019 cohort \citep{reyna2019} contains 40{,}336 ICU stays
+(20{,}336 site A, Boston; 20{,}000 site B, Atlanta), one row per patient-hour,
+with 8 vitals, 26 laboratory variables, 6 context variables and a shifted
+\texttt{SepsisLabel}: for septic patients it is 1 from $t_{\text{sepsis}}-6$
+onward, so the six-hour early-prediction horizon is a property of the published
+data, not a modelling choice. Reconstruction of Sepsis-3 onset
+\citep{sepsis3} is impossible from the public files (no culture or antibiotic
+times).
+
+The only exclusion is D3: patients with fewer than 8 hourly records are dropped
+(\todohuman{confirm the resulting counts from \texttt{docs/data\_notes.md} once
+produced}). Splits are by patient, never by row: site A 80/20 train/validation;
+site B split by patient into an 80\% training slice (used for the B$\to$A and
+A+B rows of the matrix) and a held-out 20\% evaluation slice that is scored
+exactly once, after every design choice was frozen. All seeds and design
+choices are pinned in \texttt{config.yaml} and recorded in
+\texttt{docs/decisions.md}.
+
+\section{Methods}
+\subsection{Prediction task and leakage discipline}
+A feature at hour $t$ may use only data from hours $\le t$ for the same
+patient. For every clinical variable the design emits a missingness indicator
+and hours-since-last-measured (missingness is signal: labs are absent
+\todohuman{insert the exact per-site percentages from
+\texttt{docs/data\_notes.md}} of the time), plus min/max/mean/last/slope over
+trailing 6, 12 and 24-hour windows --- 582 features in the window set, all
+backward-looking. No patient straddles a split; this is enforced by unit tests
+(\texttt{tests/invariant/}), as is train-only fitting of every preprocessing
+statistic.
+
+\subsection{Models}
+\begin{itemize}
+\item \textbf{Baseline} (deliberately weak): logistic regression on the last
+observed value carried forward within patient plus missingness indicators,
+imputer and scaler fit on train only.
+\item \textbf{Main}: LightGBM \citep{lightgbm} over the 582-column window
+design, 600 trees, fixed grid of 18 configurations
+($\text{learning-rate}\in\{0.02,0.05,0.1\}\times
+\text{num-leaves}\in\{15,31,63\}\times
+\text{min-child-samples}\in\{20,100\}$) tuned on the site-A validation split
+only.
+\end{itemize}
+The operating threshold is the utility-maximising point on site-A validation,
+swept at 0.01 granularity (decision D5), frozen before any site-B scoring.
+
+\subsection{Evaluation}
+Every cell reports AUROC, AUPRC, the official time-dependent utility score
+\citep{reyna2019} and the positive-class prevalence; the utility scorer is the
+organisers' own implementation, vendored and unit-tested. Rigor analyses
+(Phase 4): reliability curves and Brier scores for A$\to$A and A$\to$B;
+subgroup AUROC/AUPRC by sex, age band and ICU unit with sample sizes and
+suppression of small-positive subgroups; alert burden (sensitivity, PPV, alerts
+per 100 ICU-days) swept over thresholds; per-site SHAP importances
+\citep{shap}.
+
+\subsection{Transfer curve}
+The A-trained model is adapted with $n \in \{0,50,100,250,500,1000,2000\}$
+site-B patients drawn disjointly from the site-B evaluation set (5 random
+draws each), by isotonic recalibration and by continued LightGBM training.
+AUPRC and utility are plotted against $n$ with mean and spread.
+
+\subsection{Serving layer}
+Cohort observations are exported and loaded into a HAPI FHIR~R4 server
+\citep{fhirr4} as LOINC-coded Observations with UCUM units; the CDS Hooks
+service \citep{cdshooks} reads them, builds the feature vector through the same
+code path as training (the Python model service is the single feature
+authority), and returns a risk card. The Angular dashboard shows the patient
+list, per-hour risk trajectory with SHAP waterfalls, and a threshold slider
+driven by the precomputed alert-burden sweep. Every user-facing surface carries
+a research-prototype disclaimer. The stack runs with \texttt{docker compose up}
+and is published/deployed from CI (\texttt{deploy/}).
+
+\section{Results}
+\todohuman{The tables and figures below must be filled from the
+provenance-marked artifacts after the first full \texttt{make eval} /
+\texttt{make rigor} run; see \texttt{results/}.}
+
+\begin{table}[htbp]
+\centering
+\caption{Cross-site validation matrix. The site-B cells were scored exactly
+once, after freezing.}
+\label{tab:matrix}
+\begin{tabular}{llcccc}
+\toprule
+Train & Test & AUROC & AUPRC & Utility & Prevalence \\
+\midrule
+A & A (held-out val) & \pending{A$\to$A} & \pending{} & \pending{} & \pending{} \\
+A & B & \pending{A$\to$B} & \pending{} & \pending{} & \pending{} \\
+B & A & \pending{B$\to$A} & \pending{} & \pending{} & \pending{} \\
+A+B & A, B separately & \pending{A+B$\to$A/B} & \pending{} & \pending{} & \pending{} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+% The figures are produced by `make rigor`; until then this compiles with a
+% placeholder box so the skeleton never blocks.
+\IfFileExists{../../results/figures/transfer_curve.png}{%
+  \includegraphics[width=.85\linewidth]{../../results/figures/transfer_curve.png}%
+}{%
+  \fbox{\parbox[c][6cm]{.8\linewidth}{\centering pending: results/figures/transfer\_curve.png (from \texttt{make rigor})}}%
+}
+\caption{Transfer curve: AUPRC and utility as the number of site-B patients
+used for recalibration vs.\ fine-tuning grows. Error band is the spread over
+five draws. The adaptation patients are disjoint from the evaluation patients.}
+\end{figure}
+
+\todohuman{Results prose: report the numbers, state which features shifted
+most between sites (from \texttt{results/feature\_drift.json}) and which
+features the two site models rely on (from the per-site SHAP importances).
+Per decision D6, the \emph{interpretation} of the cross-site drop is the
+authors' --- do not draft it.}
+
+\todohuman{Calibration findings, subgroup findings (with the suppression
+notes), and the alert-burden reading at the D5 threshold.}
+
+\section{Discussion}
+\todohuman{The authors' interpretation, including the clinical meaning (if
+any) of the transfer drop, the transfer-curve plateau, and what the
+recalibration vs.\ fine-tuning comparison suggests about the failure mode.
+Also: what this prototype does and does not support for the FHIR/CDS
+deployment story.}
+
+\section{Limitations}
+The label is inherited from the Challenge's shifted \texttt{SepsisLabel};
+its correctness is not established here. $t_{\text{sepsis}}$ is not
+recoverable, so onset-relative statements are properties of the published
+label. Two hospitals do not make a generalisation study. Site-B cells were
+computed once on a 20\% evaluation slice and carry correspondingly more
+sampling noise. The public data carry no race, ethnicity, insurance or
+admission-source fields, so those subgroups cannot be examined. The operating
+threshold is a research operating point, not a clinically negotiated one. This
+is a research prototype --- not validated for clinical use, not a medical
+device --- \todohuman{confirm the final regulatory-position sentence}.
+
+\section*{Funding and conflicts of interest}
+\todohuman{funding source; competing interests; data-access statement.}
+
+\bibliographystyle{plainnat}
+\begin{thebibliography}{9}
+\bibitem[Reyna et al.(2019)]{reyna2019} Reyna MA, Josef CS, Jeter R,
+Shashikumar SP, Westover MB, Nemati S, Clifford GD, Sharma A. Early Prediction
+of Sepsis From Clinical Data: The PhysioNet/Computing in Cardiology Challenge
+2019. \emph{Critical Care Medicine} 48(2):210--217, 2020.
+\bibitem[Singer et al.(2016)]{sepsis3} Singer M, Deutschman CS, Seymour CW,
+et al. The Third International Consensus Definitions for Sepsis and Septic
+Shock (Sepsis-3). \emph{JAMA} 315(8):801--810, 2016.
+\bibitem[Ke et al.(2017)]{lightgbm} Ke G, Meng Q, Finley T, et al. LightGBM: A
+Highly Efficient Gradient Boosting Decision Tree. \emph{NeurIPS} 30, 2017.
+\bibitem[Lundberg and Lee(2017)]{shap} Lundberg SM, Lee S-I. A Unified
+Approach to Interpreting Model Predictions. \emph{NeurIPS} 30, 2017.
+\bibitem[Goldberger et al.(2000)]{physionet} Goldberger AL, Amaral LAN, Glass
+L, et al. PhysioBank, PhysioToolkit, and PhysioNet. \emph{Circulation}
+101(23):e215--e220, 2000.
+\bibitem[HL7(2019)]{fhirr4} HL7 International. FHIR Release 4 (R4), 2019.
+\url{https://hl7.org/fhir/R4/}
+\bibitem[CDS Hooks(2021)]{cdshooks} HL7 CDS Hooks community. CDS Hooks
+specification. \url{https://cds-hooks.org/}
+\bibitem[Collins et al.(2024)]{tripodai} Collins GS, Moons KGM, Dhiman P, et
+al. TRIPOD+AI statement: updated reporting guidance for studies that develop or
+evaluate prediction models using machine learning. \emph{BMJ} 385:e078378,
+2024.
+\end{thebibliography}
+
+% TRIPOD+AI self-assessment: see TRIPOD_AI.md in this directory. Items marked
+% TODO(human) there map to the red markers above.
+
+\end{document}

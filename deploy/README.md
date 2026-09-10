@@ -31,8 +31,8 @@ to **GHCR as public packages**; the EC2 instance needs no registry credentials.
 - `template.yml` — CloudFormation: security group, SSM role, one instance whose
   user-data boots `/opt/sepsis/app` from the git tag and starts `docker compose`.
   Also a $20/month budget alarm and a CloudWatch health alarm.
-- `docker-compose.prod.yml` — offline instance compose (the images already
-  carry everything; no `.env` defaults for the domain).
+- `docker-compose.prod.yml` — the instance's compose (every image carries its
+  own artifacts; only `GHCR_TAG` and `DOMAIN` come from `.env`).
 - `Caddyfile` — TLS edge, healthz, API reverse proxy.
 - `deploy.sh` — tag deploy via CloudFormation + SSM Run Command (run by CI).
 - `bootstrap.sh` — one-time AWS IAM OIDC setup (run by a human once).
