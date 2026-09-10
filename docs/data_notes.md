@@ -244,8 +244,8 @@ Checked before anything is hosted publicly (AGENTS-ENGINEERING.md §18).
 
 This file is generated. Do not edit it by hand; edit the code that writes it.
 
-- Generated (UTC): `2026-09-09T00:45:10+00:00`
-- Git commit: `577846f610516a248f2a155a891f62c588b8ed3e` (working tree dirty: yes)
+- Generated (UTC): `2026-09-10T01:49:55+00:00`
+- Git commit: `a30e4861c15db200ff5ac01e932fcd3caadceacf` (working tree dirty: no)
 - Seed: `20190801`  ·  `PYTHONHASHSEED=None`
 - Python: 3.12.14 on Windows-10-10.0.19045-SP0
 - Packages: polars 1.44.1, numpy 2.5.3, pandas 2.3.3, scikit-learn 1.9.0, lightgbm 4.7.0, shap 0.52.0, pyarrow 21.0.0

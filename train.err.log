@@ -1,0 +1,3 @@
+WARNING: HELD-OUT SITE B LOADED: training_setB is an external test set. It must never be used for training, hyperparameter tuning, imputation statistics, scaler fitting, calibration, or any design iteration (AGENTS.md §2.2).
+D:\Phd\fhir-sepsis-early-warning\src\sepsis\splits.py:156: UserWarning: HELD-OUT SITE B LOADED: training_setB is an external test set. It must never be used for training, hyperparameter tuning, imputation statistics, scaler fitting, calibration, or any design iteration (AGENTS.md §2.2).
+  site_b = load_site_b(cohort)  # warns every call, by design
