@@ -19,21 +19,53 @@ from sepsis.config import load_config
 from sepsis.io import read_cohort
 
 VARIABLES = [
-    "HR", "O2Sat", "Temp", "SBP", "MAP", "DBP", "Resp", "EtCO2",
-    "BaseExcess", "HCO3", "FiO2", "pH", "PaCO2", "SaO2", "AST", "BUN",
-    "Alkalinephos", "Calcium", "Chloride", "Creatinine", "Bilirubin_direct",
-    "Glucose", "Lactate", "Magnesium", "Phosphate", "Potassium",
-    "Bilirubin_total", "TroponinI", "Hct", "Hgb", "PTT", "WBC", "Fibrinogen",
+    "HR",
+    "O2Sat",
+    "Temp",
+    "SBP",
+    "MAP",
+    "DBP",
+    "Resp",
+    "EtCO2",
+    "BaseExcess",
+    "HCO3",
+    "FiO2",
+    "pH",
+    "PaCO2",
+    "SaO2",
+    "AST",
+    "BUN",
+    "Alkalinephos",
+    "Calcium",
+    "Chloride",
+    "Creatinine",
+    "Bilirubin_direct",
+    "Glucose",
+    "Lactate",
+    "Magnesium",
+    "Phosphate",
+    "Potassium",
+    "Bilirubin_total",
+    "TroponinI",
+    "Hct",
+    "Hgb",
+    "PTT",
+    "WBC",
+    "Fibrinogen",
     "Platelets",
 ]
 
 STATIC = ["Age", "Gender", "Unit1", "Unit2", "ICULOS"]
 
 
-def export(config, out: Path, site: str | None = None) -> Path:
+def export(config, out: Path, site: str | None = None, limit: int | None = None) -> Path:
     cohort = read_cohort(config.path("cohort"))
     if site:
         cohort = cohort.filter(pl.col("site") == site)
+    if limit:
+        # Stable subset: first `limit` patient ids in sort order (demo seed).
+        ids = sorted(cohort.get_column("patient_id").unique().to_list())[:limit]
+        cohort = cohort.filter(pl.col("patient_id").is_in(ids))
     cohort = cohort.sort(["patient_id", "hour"])
 
     frame = cohort.select(
@@ -54,15 +86,29 @@ def export(config, out: Path, site: str | None = None) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=None)
-    parser.add_argument("--out", type=Path, default=None,
-                        help="output CSV path (default data/interim/fhirloader.csv)")
-    parser.add_argument("--site", choices=["A", "B"], default=None,
-                        help="limit to one site (demo: site A is a few thousand MB; B is fine)")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="output CSV path (default data/interim/fhirloader.csv)",
+    )
+    parser.add_argument(
+        "--site",
+        choices=["A", "B"],
+        default=None,
+        help="limit to one site (demo: site A is a few thousand MB; B is fine)",
+    )
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=None,
+        help="subset the cohort to the first N patient ids (demo seed)",
+    )
     args = parser.parse_args()
     config = load_config(args.config)
     out = args.out or config.path("interim") / "fhirloader.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
-    export(config, out, site=args.site)
+    export(config, out, site=args.site, limit=args.count)
     print(out)
     return 0
 

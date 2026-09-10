@@ -23,9 +23,7 @@ def _cell(name: str) -> dict:
 
 
 def test_matrix_rows_are_ordered_and_complete():
-    matrix = {
-        cell: _cell(cell) for cell in ("A->A", "A->B", "B->A", "A+B->A", "A+B->B")
-    }
+    matrix = {cell: _cell(cell) for cell in ("A->A", "A->B", "B->A", "A+B->A", "A+B->B")}
     rows = _matrix_rows(matrix)
     assert rows[0].startswith("| Train | Test | AUROC | AUPRC | Utility | Prevalence |")
     assert rows[1].startswith("|---|---|---|---|---|---|")

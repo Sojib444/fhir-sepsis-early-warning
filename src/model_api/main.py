@@ -126,6 +126,12 @@ def root() -> dict[str, str]:
     return {"service": "sepsis-risk model", "ok": True}
 
 
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
+    # Liveness probe for the deployed edge (compose healthcheck, §22).
+    return {"status": "ok"}
+
+
 @app.post("/features", response_model=FeaturesResponse)
 def build_features(request: FeaturesRequest) -> FeaturesResponse:
     if not request.observations:
@@ -157,9 +163,7 @@ def build_features(request: FeaturesRequest) -> FeaturesResponse:
             "Unit1": [request.unit1 if request.unit1 is not None else float("nan")] * n,
             "Unit2": [request.unit2 if request.unit2 is not None else float("nan")] * n,
             "HospAdmTime": [request.hosp_adm_time] * n,
-            "ICULOS": [
-                float(request.iculos if request.iculos is not None else last_hour + 1)
-            ] * n,
+            "ICULOS": [float(request.iculos if request.iculos is not None else last_hour + 1)] * n,
             "SepsisLabel": [0] * n,
         }
     )

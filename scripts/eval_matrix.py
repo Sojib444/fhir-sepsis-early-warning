@@ -120,14 +120,10 @@ def _write_json(path: Path, payload: dict) -> None:
 def _score_fingerprint(config, designs) -> dict:
     """Hash of everything that determines the site-B cell values."""
     names = ("window_a.txt", "window_b.txt", "window_ab.txt")
-    model_hashes = {
-        name: sha256_of_file(config.path("models") / name)[:16] for name in names
-    }
+    model_hashes = {name: sha256_of_file(config.path("models") / name)[:16] for name in names}
     b_eval = designs["b_eval"]
     design_meta = b_eval.npy, b_eval.side, b_eval.meta
-    design_hashes = {
-        part.suffix or part.name: sha256_of_file(part)[:16] for part in design_meta
-    }
+    design_hashes = {part.suffix or part.name: sha256_of_file(part)[:16] for part in design_meta}
     threshold_hash = sha256_of_file(config.path("threshold"))[:16]
     columns_hash = sha256_of_file(config.path("models") / "window_features_columns.json")[:16]
     return {
@@ -253,7 +249,7 @@ def main() -> int:
     dists = _feature_wasserstein(a_samp, b_samp)
     ranked = sorted(
         ((columns[j], dists[j]) for j in range(len(columns))),
-        key=lambda kv: (-1 if np.isnan(kv[1]) else kv[1]),
+        key=lambda kv: -1 if np.isnan(kv[1]) else kv[1],
         reverse=True,
     )
 
@@ -264,13 +260,19 @@ def main() -> int:
 
     _write_json(
         config.path("feature_drift"),
-        {"per_feature": {col: d for col, d in ranked}, "ranked": ranked,
-         "provenance": provenance(config.seed, config.path("cohort"))},
+        {
+            "per_feature": {col: d for col, d in ranked},
+            "ranked": ranked,
+            "provenance": provenance(config.seed, config.path("cohort")),
+        },
     )
     _write_json(
         config.path("shap_importance"),
-        {"site_A_model": a_imp, "site_B_model": b_imp,
-         "provenance": provenance(config.seed, config.path("cohort"))},
+        {
+            "site_A_model": a_imp,
+            "site_B_model": b_imp,
+            "provenance": provenance(config.seed, config.path("cohort")),
+        },
     )
 
     # --- markdown report -----------------------------------------------------

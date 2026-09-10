@@ -1,6 +1,6 @@
 services:
   hapi:
-    image: hapiproject/hapi:v6.4.0
+    image: hapiproject/hapi:v6.4.0@sha256:638b8df98fcfc074404520700923c07d313f62c5dcad49ca569cdb8041c7cc57
     container_name: sepsis-hapi
     ports:
       - "8080:8080"

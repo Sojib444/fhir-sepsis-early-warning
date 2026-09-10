@@ -38,7 +38,10 @@ from sepsis.transfer import transfer_curve
 from sepsis.window_design import design_files, load_design
 
 AGE_BANDS: list[tuple[str, float, float]] = [
-    ("<40", 0, 40), ("40-65", 40, 65), ("65-80", 65, 80), ("80+", 80, np.inf)
+    ("<40", 0, 40),
+    ("40-65", 40, 65),
+    ("65-80", 65, 80),
+    ("80+", 80, np.inf),
 ]
 MIN_POSITIVES = 50  # suppress subgroups with fewer positive hours than this
 FIGS = "figures"
@@ -192,9 +195,7 @@ def _transfer_figure(config, data, fig_path):
         ax.set_ylabel(ylabel)
         ax.legend(frameon=False)
         ax.grid(alpha=0.3)
-    fig.suptitle(
-        "Transfer curve: A-trained model recovered with n site-B patients (mean +/- SD)"
-    )
+    fig.suptitle("Transfer curve: A-trained model recovered with n site-B patients (mean +/- SD)")
     fig.tight_layout()
     fig.savefig(fig_path, dpi=200)
     plt.close(fig)
@@ -231,9 +232,7 @@ def main() -> int:
     # --- cohort attributes (for subgroups) -----------------------------------
     x_val, side_val, _ = _design("a_val")
     pids_val = side_val["patient_id"]
-    cohort = read_cohort(config.path("cohort")).filter(
-        pl.col("patient_id").is_in(set(pids_val))
-    )
+    cohort = read_cohort(config.path("cohort")).filter(pl.col("patient_id").is_in(set(pids_val)))
     cohort_by_pid = {
         pid: row
         for pid, row in zip(
@@ -305,22 +304,38 @@ def main() -> int:
 
     # --- 4. SHAP figures -----------------------------------------------------
     fig_dir = config.result_path("figures")
-    _shap_global_figure(a_model, designs["a_val"], columns, fig_dir / "shap_global_a.png",
-                        "Global SHAP — site-A model on site-A validation")
-    _shap_global_figure(ab_model, designs["b_eval"], columns, fig_dir / "shap_global_b.png",
-                        "Global SHAP — A+B model on site-B evaluation")
+    _shap_global_figure(
+        a_model,
+        designs["a_val"],
+        columns,
+        fig_dir / "shap_global_a.png",
+        "Global SHAP — site-A model on site-A validation",
+    )
+    _shap_global_figure(
+        ab_model,
+        designs["b_eval"],
+        columns,
+        fig_dir / "shap_global_b.png",
+        "Global SHAP — A+B model on site-B evaluation",
+    )
     # one true positive, one false positive (A model at D5 threshold on A-val)
     pred_val = (probs_val >= thr).astype(np.int64)
     tp = np.where((pred_val == 1) & (y_val == 1))[0]
     fp = np.where((pred_val == 1) & (y_val == 0))[0]
     if tp.size and fp.size:
         _shap_waterfall_figure(
-            a_model, designs["a_val"], columns, tp[0],
+            a_model,
+            designs["a_val"],
+            columns,
+            tp[0],
             fig_dir / "shap_waterfall_tp.png",
             "True positive (A model, D5 threshold)",
         )
         _shap_waterfall_figure(
-            a_model, designs["a_val"], columns, fp[0],
+            a_model,
+            designs["a_val"],
+            columns,
+            fp[0],
             fig_dir / "shap_waterfall_fp.png",
             "False positive (A model, D5 threshold)",
         )
@@ -424,9 +439,9 @@ def main() -> int:
         rec_arr = np.array([[d["auprc"], d["utility"]] for d in rec])
         ft_arr = np.array([[d["auprc"], d["utility"]] for d in ft])
         lines.append(
-            f"| n={ni} | recalib AUPRC {rec_arr[:,0].mean():.3f}±{rec_arr[:,0].std():.3f}, "
-            f"utility {rec_arr[:,1].mean():.3f} | finetune AUPRC {ft_arr[:,0].mean():.3f}±"
-            f"{ft_arr[:,0].std():.3f}, utility {ft_arr[:,1].mean():.3f} |"
+            f"| n={ni} | recalib AUPRC {rec_arr[:, 0].mean():.3f}±{rec_arr[:, 0].std():.3f}, "
+            f"utility {rec_arr[:, 1].mean():.3f} | finetune AUPRC {ft_arr[:, 0].mean():.3f}±"
+            f"{ft_arr[:, 0].std():.3f}, utility {ft_arr[:, 1].mean():.3f} |"
         )
     lines += ["", provenance_markdown(provenance(config.seed, config.path("cohort")))]
     (config.result_path("rigor.md")).write_text("\n".join(lines) + "\n", encoding="utf-8")

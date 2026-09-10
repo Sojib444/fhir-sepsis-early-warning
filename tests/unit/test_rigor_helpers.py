@@ -82,9 +82,7 @@ def test_reliability_curve_writes_plot(tmp_path):
 def test_transfer_figure_writes_std_error_bands(tmp_path):
     data = {
         "n": [0, 50, 100],
-        "recalib": [
-            [{"auprc": 0.5 + i / 100, "utility": 0.1} for i in range(5)] for _ in range(3)
-        ],
+        "recalib": [[{"auprc": 0.5 + i / 100, "utility": 0.1} for i in range(5)] for _ in range(3)],
         "finetune": [
             [{"auprc": 0.5 + i / 100, "utility": 0.2} for i in range(5)] for _ in range(3)
         ],

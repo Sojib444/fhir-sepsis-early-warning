@@ -1,7 +1,8 @@
 # Build context is the repository root (docker-compose sets it). The image
 # needs the trained artifacts present (results/models/, results/threshold.json),
 # which exist once `make train` has run — see README.md.
-FROM python:3.12-slim
+# Pin the base image by digest (§23): 3.12-slim multi-arch manifest list.
+FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
 
 WORKDIR /app
 

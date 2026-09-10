@@ -47,9 +47,7 @@ def predict_design(model, design: DesignFiles) -> dict[str, np.ndarray]:
     }
 
 
-def draw_patient_mask(
-    pids: np.ndarray, n_patients: int, rng
-) -> np.ndarray:
+def draw_patient_mask(pids: np.ndarray, n_patients: int, rng) -> np.ndarray:
     """Boolean mask marking one deterministic by-patient draw of `n_patients`."""
     unique_pids = np.unique(pids)
     if n_patients > len(unique_pids):
@@ -147,9 +145,7 @@ def transfer_curve(
                 assert_adaptation_disjoint(draw_pids, np.unique(pids_eval))
 
                 # --- recalibration (fit on base probs of the n patients) ----
-                iso = recalibrate_isotonic(
-                    train_preds["probs"][mask], train_preds["labels"][mask]
-                )
+                iso = recalibrate_isotonic(train_preds["probs"][mask], train_preds["labels"][mask])
                 rec_probs = np.asarray(iso.predict(eval_preds["probs"]), dtype=np.float64)
 
                 # --- fine-tuning (continue boosting on the n patients) -------

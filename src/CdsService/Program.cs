@@ -28,6 +28,13 @@ var app = builder.Build();
 app.UseRouting();
 
 // CDS Hooks discovery (https://cds-hooks.org/specification/current/).
+app.MapGet("/healthz", () => Results.Ok(new
+{
+    status = "ok",
+    service = "cds",
+    version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown",
+}));
+
 app.MapGet("/cds-services", () => Results.Ok(new
 {
     services = new[]

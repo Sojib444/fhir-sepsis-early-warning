@@ -120,8 +120,13 @@ def test_fine_tune_continues_and_keeps_column_contract(tmp_path, fixture_dir):
     assert base.feature_name() == columns
 
     mask = draw_patient_mask(side["patient_id"], 2, np.random.default_rng(0))
-    params = {"objective": "binary", "seed": 20190801, "deterministic": True,
-              "force_row_wise": True, "verbosity": -1}
+    params = {
+        "objective": "binary",
+        "seed": 20190801,
+        "deterministic": True,
+        "force_row_wise": True,
+        "verbosity": -1,
+    }
     adapted = fine_tune(base, np.asarray(x[mask]), side["SepsisLabel"][mask], columns, params)
     assert adapted.feature_name() == columns
     assert adapted.predict(np.asarray(x[:2])).shape == (2,)
@@ -136,8 +141,13 @@ def test_transfer_curve_structure_and_site_b_isolation(tmp_path, fixture_dir):
     dbe = _build(tmp_path, "b_eval", be)
     x, side, columns = load_design(da)
     base = _mini_model(x, side, columns)
-    params = {"objective": "binary", "seed": 20190801, "deterministic": True,
-              "force_row_wise": True, "verbosity": -1}
+    params = {
+        "objective": "binary",
+        "seed": 20190801,
+        "deterministic": True,
+        "force_row_wise": True,
+        "verbosity": -1,
+    }
 
     data = transfer_curve(
         base_model=base,
@@ -156,11 +166,14 @@ def test_transfer_curve_structure_and_site_b_isolation(tmp_path, fixture_dir):
         assert len(per_n) == 2  # one row per draw
         for row in per_n:
             assert {"auprc", "utility"} <= set(row)
+
     # n=0 is exactly the base model for both arms. b_eval here is a single
     # non-septic patient, so AUPRC and utility are NaN — but both arms must
     # still report the identical (un-adapted) result.
     def _norm(rows):
-        return [{k: (None if isinstance(v, float) and np.isnan(v) else v) for k, v in r.items()}
-                for r in rows]
+        return [
+            {k: (None if isinstance(v, float) and np.isnan(v) else v) for k, v in r.items()}
+            for r in rows
+        ]
 
     assert _norm(data["finetune"][0]) == _norm(data["recalib"][0])

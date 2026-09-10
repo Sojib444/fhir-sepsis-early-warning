@@ -145,18 +145,10 @@ def _window_cohort_with_known_values() -> pl.DataFrame:
 def test_window_stats_one_matches_hand_arithmetic():
     values = np.array([1.0, 2.0, np.nan, 4.0, 5.0])
     stats = _window_stats_one(values, w=3)
-    np.testing.assert_allclose(
-        stats["min"], [1.0, 1.0, 1.0, 2.0, 4.0], equal_nan=True
-    )
-    np.testing.assert_allclose(
-        stats["max"], [1.0, 2.0, 2.0, 4.0, 5.0], equal_nan=True
-    )
-    np.testing.assert_allclose(
-        stats["mean"], [1.0, 1.5, 1.5, 3.0, 4.5], equal_nan=True
-    )
-    np.testing.assert_allclose(
-        stats["last"], [1.0, 2.0, 2.0, 4.0, 5.0], equal_nan=True
-    )
+    np.testing.assert_allclose(stats["min"], [1.0, 1.0, 1.0, 2.0, 4.0], equal_nan=True)
+    np.testing.assert_allclose(stats["max"], [1.0, 2.0, 2.0, 4.0, 5.0], equal_nan=True)
+    np.testing.assert_allclose(stats["mean"], [1.0, 1.5, 1.5, 3.0, 4.5], equal_nan=True)
+    np.testing.assert_allclose(stats["last"], [1.0, 2.0, 2.0, 4.0, 5.0], equal_nan=True)
     # slopes: (0,1)-(1,2) -> 1; (1,2)-(3,4) -> 1; (3,4)-(4,5) -> 1
     np.testing.assert_allclose(stats["slope"], [np.nan, 1.0, 1.0, 1.0, 1.0], equal_nan=True)
 
@@ -177,9 +169,9 @@ def test_window_features_never_read_the_future():
     for t in (0, 1, 2):
         before = features.filter(pl.col("hour") == t)
         after = features_corrupted.filter(pl.col("hour") == t)
-        assert before.select(columns).equals(
-            after.select(columns)
-        ), f"window features at hour {t} depend on future data"
+        assert before.select(columns).equals(after.select(columns)), (
+            f"window features at hour {t} depend on future data"
+        )
 
 
 def test_window_feature_columns_are_counted_and_ordered():

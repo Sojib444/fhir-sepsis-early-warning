@@ -78,9 +78,7 @@ def test_concatenation_equals_a_direct_build(tmp_path, fixture_dir):
 
     da = _build(tmp_path, "a_train", a_train)
     db = _build(tmp_path, "b_train", b_train)
-    dab = DesignFiles(
-        "ab", tmp_path / "ab.npy", tmp_path / "ab.npz", tmp_path / "ab.meta.json"
-    )
+    dab = DesignFiles("ab", tmp_path / "ab.npy", tmp_path / "ab.npz", tmp_path / "ab.meta.json")
     concatenate_designs([da, db], dab)
 
     direct = _build(tmp_path, "direct", pl.concat([a_train, b_train], how="vertical"))
